@@ -99,6 +99,24 @@
   color: #dc2626;
 }
 
+.card.success {
+  border-color: #16a34a;
+  background: #dcfce7;
+  color: #166534;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .card h2 {
   margin: 0 0 16px;
   font-size: 1.5rem;
@@ -321,7 +339,26 @@
   font-family: inherit;
 }
 
+.field select,
+.field textarea {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  background: var(--background);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
 .field input:focus {
+  outline: none;
+  border-color: var(--strava-orange);
+  box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.1);
+}
+
+.field select:focus,
+.field textarea:focus {
   outline: none;
   border-color: var(--strava-orange);
   box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.1);
@@ -329,4 +366,74 @@
 
 .field input::placeholder {
   color: var(--text-muted);
+}
+
+.field-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+}
+
+.inline-error {
+  color: #dc2626;
+  font-size: 0.9rem;
+  margin: 8px 0 0;
+}
+
+/* Plans */
+.plan-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+  align-items: end;
+}
+
+.plan-builder {
+  display: grid;
+  gap: 20px;
+}
+
+.plan-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.plan-session-list {
+  display: grid;
+  gap: 16px;
+}
+
+.plan-session-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--background-light);
+  display: grid;
+  gap: 16px;
+}
+
+.plan-session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.plan-session-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.plan-session-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.plan-footer {
+  display: flex;
+  justify-content: flex-end;
 }
