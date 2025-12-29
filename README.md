@@ -84,11 +84,49 @@ The athlete PWA will start on `http://localhost:5174`
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
+## Testing & Test Data
+
+### Setting Up Test Data
+
+To quickly set up test users, exercises, benchmarks, and training plans:
+
+```bash
+./setup-test-data.sh
+```
+
+This script creates:
+- Coach user: `coach@test.com` / `password123`
+- Athlete user: `athlete@test.com` / `password123`
+- Sample exercises (Back Squat, Deadlift, Zone 2 Bike, Zone 2 Run)
+- Benchmarks (FTP, HR Max, HR Rest, 1RM values)
+- A weekly training plan with 4 sessions
+
+**Note**: If users already exist, clean them first:
+```bash
+cd backend && npx prisma studio
+# Delete: coach@test.com and athlete@test.com
+```
+
+See [`TESTING.md`](./TESTING.md) for complete testing guide and API examples.
+
 ## Development Workflow
 
 ### Running All Apps Simultaneously
 
-Open three terminal windows:
+**Option 1: Use the dev script (Recommended)**
+
+From the repo root, run:
+```bash
+./dev.sh
+```
+
+This will:
+- Start all three services (backend, coach-web, athlete-pwa)
+- Install dependencies if needed
+- Show service URLs and log file locations
+- Handle cleanup on Ctrl+C
+
+**Option 2: Manual (Three Terminal Windows)**
 
 **Terminal 1 - Backend:**
 ```bash

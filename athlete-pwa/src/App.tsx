@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!getAuthToken())
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' })
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [weekSessions, setWeekSessions] = useState<WeekSession[]>([])
   const [weekError, setWeekError] = useState(false)
   const [weekLoading, setWeekLoading] = useState(false)
   const [dayKey, setDayKey] = useState(() => formatLocalDate(new Date()))
+  const [pendingSessionIds, setPendingSessionIds] = useState<string[]>([])
+  const [syncWarning, setSyncWarning] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<TrainingSession | null>(
@@ -25,41 +32,82 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    let isMounted = true
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginLoading(true)
+    setLoginError(null)
 
-    const fetchToday = async () => {
-      setLoading(true)
-      setError(null)
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: loginForm.email,
+          password: loginForm.password,
+        }),
+      })
 
-      try {
-        const data = await apiFetch<TrainingSession[]>('/api/athlete/today')
-        if (!isMounted) return
-        const sorted = [...data].sort((a, b) => {
-          const aTime = new Date(a.createdAt ?? a.date).getTime()
-          const bTime = new Date(b.createdAt ?? b.date).getTime()
-          return aTime - bTime
-        })
-        setSessions(sorted)
-      } catch (err) {
-        if (!isMounted) return
-        setError(
-          err instanceof Error ? err.message : 'Failed to load sessions',
-        )
-      } finally {
-        if (!isMounted) return
-        setLoading(false)
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.message || 'Login failed')
       }
+
+      const data = (await response.json()) as {
+        accessToken: string
+        refreshToken?: string
+      }
+
+      localStorage.setItem('accessToken', data.accessToken)
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken)
+      }
+
+      setIsAuthenticated(true)
+      setLoginForm({ email: '', password: '' })
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoginLoading(false)
     }
+  }
 
-    fetchToday()
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('token')
+    setIsAuthenticated(false)
+    setSessions([])
+    setWeekSessions([])
+  }
 
-    return () => {
-      isMounted = false
+  const refreshQueueState = useCallback(async () => {
+    const items = await listQueueItems()
+    const unique = Array.from(new Set(items.map((item) => item.sessionId)))
+    setPendingSessionIds(unique)
+    return items
+  }, [])
+
+  const fetchToday = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const data = await apiFetch<TrainingSession[]>('/api/athlete/today')
+      const sorted = [...data].sort((a, b) => {
+        const aTime = new Date(a.createdAt ?? a.date).getTime()
+        const bTime = new Date(b.createdAt ?? b.date).getTime()
+        return aTime - bTime
+      })
+      setSessions(sorted)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load sessions')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  const fetchWeekSessions = async () => {
+  const fetchWeekSessions = useCallback(async () => {
     setWeekLoading(true)
     setWeekError(false)
 
@@ -93,11 +141,99 @@ function App() {
     } finally {
       setWeekLoading(false)
     }
-  }
+  }, [])
+
+  const replayQueue = useCallback(
+    async (items?: QueueItem[]) => {
+      const queueItems = items ?? (await listQueueItems())
+      if (queueItems.length === 0) {
+        setIsSyncing(false)
+        return
+      }
+
+      setIsSyncing(true)
+      const ordered = [...queueItems].sort(
+        (a, b) => a.createdAt - b.createdAt,
+      )
+      let hasSuccessfulReplay = false
+
+      for (const item of ordered) {
+        if (item.attempts >= 5) {
+          await removeQueueItem(item.id)
+          setSyncWarning('Some actions could not be synced.')
+          continue
+        }
+
+        const { method, url, body } = item.request
+        try {
+          const authHeader = buildAuthHeader()
+          const response = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authHeader.Authorization ? authHeader : {}),
+            },
+            body,
+          })
+
+          if (response.ok) {
+            await removeQueueItem(item.id)
+            hasSuccessfulReplay = true
+            continue
+          }
+
+          if (response.status >= 400 && response.status < 500) {
+            await removeQueueItem(item.id)
+            if (response.status !== 409 && response.status !== 400) {
+              setSyncWarning('Some actions could not be synced.')
+            }
+            continue
+          }
+
+          await updateQueueItem(item.id, {
+            attempts: item.attempts + 1,
+            lastError: `Server error ${response.status}`,
+          })
+        } catch (err) {
+          if (isNetworkError(err)) {
+            await updateQueueItem(item.id, {
+              attempts: item.attempts + 1,
+              lastError: 'Network error',
+            })
+            continue
+          }
+
+          await updateQueueItem(item.id, {
+            attempts: item.attempts + 1,
+            lastError: err instanceof Error ? err.message : 'Unknown error',
+          })
+        }
+      }
+
+      const refreshed = await refreshQueueState()
+      if (hasSuccessfulReplay) {
+        await Promise.all([fetchToday(), fetchWeekSessions()])
+      }
+
+      if (refreshed.length === 0) {
+        setSyncWarning(null)
+      }
+      setIsSyncing(false)
+    },
+    [fetchToday, fetchWeekSessions, refreshQueueState],
+  )
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchToday()
+      fetchWeekSessions()
+      refreshQueueState().then((items) => replayQueue(items))
+    }
+  }, [isAuthenticated, fetchToday, fetchWeekSessions, refreshQueueState, replayQueue])
 
   useEffect(() => {
     fetchWeekSessions()
-  }, [dayKey])
+  }, [dayKey, fetchWeekSessions])
 
   useEffect(() => {
     const now = new Date()
@@ -109,6 +245,14 @@ function App() {
     return () => window.clearTimeout(timeout)
   }, [dayKey])
 
+  useEffect(() => {
+    const handleOnline = () => {
+      replayQueue()
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [replayQueue])
+
   const todayLabel = useMemo(() => {
     const now = new Date()
     return now.toLocaleDateString(undefined, {
@@ -117,6 +261,21 @@ function App() {
       day: 'numeric',
     })
   }, [])
+
+  const updateWeekSessionsAfterStatus = useCallback(
+    (sessionId: string, status: SessionStatus) => {
+      if (status === 'COMPLETED' || status === 'MISSED') {
+        setWeekSessions((prev) => prev.filter((session) => session.id !== sessionId))
+        return
+      }
+      setWeekSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId ? { ...session, status } : session,
+        ),
+      )
+    },
+    [],
+  )
 
   const markStatus = async (sessionId: string, status: SessionStatus) => {
     setSubmitting(true)
@@ -132,9 +291,29 @@ function App() {
           session.id === sessionId ? { ...session, status } : session,
         ),
       )
+      updateWeekSessionsAfterStatus(sessionId, status)
       fetchWeekSessions()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update status')
+      if (isNetworkError(err)) {
+        await enqueueQueueItem({
+          kind: 'STATUS',
+          sessionId,
+          request: {
+            method: 'PATCH',
+            url: `/api/athlete/sessions/${sessionId}/status`,
+            body: JSON.stringify({ status }),
+          },
+        })
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId ? { ...session, status } : session,
+          ),
+        )
+        updateWeekSessionsAfterStatus(sessionId, status)
+        await refreshQueueState()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to update status')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -159,12 +338,12 @@ function App() {
     setSubmitting(true)
     setError(null)
 
-    try {
-      const summary =
-        activeSession.type === 'STRENGTH'
-          ? buildStrengthSummary(logForm)
-          : buildEnduranceSummary(logForm)
+    const summary =
+      activeSession.type === 'STRENGTH'
+        ? buildStrengthSummary(logForm)
+        : buildEnduranceSummary(logForm)
 
+    try {
       await apiFetch(`/api/athlete/sessions/${activeSession.id}/log`, {
         method: 'POST',
         body: JSON.stringify({ summary }),
@@ -182,26 +361,130 @@ function App() {
             : session,
         ),
       )
+      updateWeekSessionsAfterStatus(activeSession.id, 'COMPLETED')
       setActiveSession(null)
       fetchWeekSessions()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to log session')
+      if (activeSession && isNetworkError(err)) {
+        await enqueueQueueItem({
+          kind: 'LOG',
+          sessionId: activeSession.id,
+          request: {
+            method: 'POST',
+            url: `/api/athlete/sessions/${activeSession.id}/log`,
+            body: JSON.stringify({ summary }),
+          },
+        })
+        await enqueueQueueItem({
+          kind: 'STATUS',
+          sessionId: activeSession.id,
+          request: {
+            method: 'PATCH',
+            url: `/api/athlete/sessions/${activeSession.id}/status`,
+            body: JSON.stringify({ status: 'COMPLETED' }),
+          },
+        })
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === activeSession.id
+              ? { ...session, status: 'COMPLETED', hasLog: true }
+              : session,
+          ),
+        )
+        updateWeekSessionsAfterStatus(activeSession.id, 'COMPLETED')
+        setActiveSession(null)
+        await refreshQueueState()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to log session')
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
+  // Show login screen if not authenticated (after all hooks)
+  if (!isAuthenticated) {
+    return (
+      <div className="app">
+        <div className="login-container">
+          <header className="login-header">
+            <h1 className="login-title">HybridPeaks</h1>
+            <p className="login-subtitle">
+              Track your progress and execute your training. Built for hybrid athletes.
+            </p>
+          </header>
+          <form className="login-form" onSubmit={handleLogin}>
+            {loginError && <div className="card error">{loginError}</div>}
+            <label className="field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={loginForm.email}
+                onChange={(e) =>
+                  setLoginForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+                placeholder="athlete@example.com"
+                required
+                disabled={loginLoading}
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(e) =>
+                  setLoginForm((prev) => ({ ...prev, password: e.target.value }))
+                }
+                placeholder="••••••••"
+                required
+                disabled={loginLoading}
+                minLength={8}
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={loginLoading}
+            >
+              {loginLoading ? 'Logging in...' : 'Log In'}
+            </button>
+            <p className="login-hint">
+              Don't have an account? Register via API or ask your coach for an
+              invitation.
+            </p>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header className="today-header">
-        <p className="today-label">Today</p>
-        <h1 className="today-date">{todayLabel}</h1>
-        <p className="today-subtitle">Stay on track. One session at a time.</p>
+        <div>
+          <p className="today-label">Today</p>
+          <h1 className="today-date">{todayLabel}</h1>
+          <p className="today-subtitle">Stay on track. One session at a time.</p>
+        </div>
+        <button
+          className="btn ghost logout-btn"
+          onClick={handleLogout}
+          title="Log out"
+        >
+          Logout
+        </button>
       </header>
 
       <section className="today-content">
         {loading && <div className="card">Loading sessions...</div>}
         {!loading && error && <div className="card error">{error}</div>}
+        {syncWarning && <div className="card warning">{syncWarning}</div>}
+        {isSyncing && (
+          <div className="card syncing">
+            <span className="syncing-indicator">Syncing...</span>
+          </div>
+        )}
         {!loading && !error && sessions.length === 0 && (
           <div className="card empty">No sessions planned for today.</div>
         )}
@@ -225,6 +508,9 @@ function App() {
                   {session.status}
                 </span>
                 {session.hasLog && <span className="status logged">LOGGED</span>}
+                {pendingSessionIds.includes(session.id) && (
+                  <span className="status pending">PENDING SYNC</span>
+                )}
               </div>
               <div className="session-actions">
                 <button
@@ -283,7 +569,10 @@ function App() {
           <ul className="week-sessions-list">
             {weekSessions.map((session) => (
               <li key={session.id} className="week-session-item">
-                {session.title}
+                <span>{session.title}</span>
+                {pendingSessionIds.includes(session.id) && (
+                  <span className="pending-pill">Pending sync</span>
+                )}
               </li>
             ))}
           </ul>
@@ -406,6 +695,24 @@ interface WeekSession {
   hasLog?: boolean
 }
 
+type QueueKind = 'STATUS' | 'LOG'
+
+interface QueueRequest {
+  method: 'PATCH' | 'POST'
+  url: string
+  body?: string
+}
+
+interface QueueItem {
+  id: string
+  createdAt: number
+  kind: QueueKind
+  sessionId: string
+  request: QueueRequest
+  attempts: number
+  lastError?: string
+}
+
 interface LogFormState {
   rpe: string
   notes: string
@@ -417,6 +724,19 @@ interface ApiErrorPayload {
 }
 
 const AUTH_TOKEN_KEYS = ['authToken', 'accessToken', 'token']
+const QUEUE_DB_NAME = 'athlete-pwa'
+const QUEUE_STORE = 'offlineQueue'
+
+class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+class NetworkError extends Error {}
 
 function getAuthToken() {
   for (const key of AUTH_TOKEN_KEYS) {
@@ -424,6 +744,11 @@ function getAuthToken() {
     if (token) return token
   }
   return null
+}
+
+function buildAuthHeader() {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -434,7 +759,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(path, { ...options, headers })
+  let response: Response
+  try {
+    response = await fetch(path, { ...options, headers })
+  } catch (err) {
+    throw new NetworkError('Network error')
+  }
+
   if (!response.ok) {
     let payload: ApiErrorPayload | null = null
     try {
@@ -442,7 +773,18 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     } catch (err) {
       payload = null
     }
-    throw new Error(payload?.message ?? 'Request failed')
+    
+    // Provide clearer error messages for common status codes
+    let errorMessage = payload?.message ?? 'Request failed'
+    if (response.status === 401) {
+      errorMessage = 'Authentication required. Please log in.'
+    } else if (response.status === 403) {
+      errorMessage = 'You do not have permission to access this resource.'
+    } else if (response.status === 404) {
+      errorMessage = 'Resource not found.'
+    }
+    
+    throw new ApiError(errorMessage, response.status)
   }
 
   if (response.status === 204) {
@@ -450,6 +792,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   }
 
   return (await response.json()) as T
+}
+
+function isNetworkError(error: unknown) {
+  return (
+    error instanceof NetworkError ||
+    error instanceof TypeError ||
+    (!navigator.onLine && error instanceof Error)
+  )
 }
 
 function summarizePrescription(session: TrainingSession) {
@@ -521,4 +871,88 @@ function getWeekRange(date: Date) {
   const end = new Date(start)
   end.setDate(start.getDate() + 6)
   return { start, end }
+}
+
+function openQueueDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(QUEUE_DB_NAME, 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(QUEUE_STORE)) {
+        db.createObjectStore(QUEUE_STORE, { keyPath: 'id' })
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function listQueueItems(): Promise<QueueItem[]> {
+  const db = await openQueueDb()
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(QUEUE_STORE, 'readonly')
+    const store = transaction.objectStore(QUEUE_STORE)
+    const request = store.getAll()
+    request.onsuccess = () => resolve(request.result as QueueItem[])
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function enqueueQueueItem(
+  item: Omit<QueueItem, 'id' | 'createdAt' | 'attempts'>,
+) {
+  const db = await openQueueDb()
+  const payload: QueueItem = {
+    ...item,
+    id: getQueueId(),
+    createdAt: Date.now(),
+    attempts: 0,
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(QUEUE_STORE, 'readwrite')
+    const store = transaction.objectStore(QUEUE_STORE)
+    const request = store.put(payload)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function updateQueueItem(id: string, updates: Partial<QueueItem>) {
+  const db = await openQueueDb()
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(QUEUE_STORE, 'readwrite')
+    const store = transaction.objectStore(QUEUE_STORE)
+    const getRequest = store.get(id)
+    getRequest.onsuccess = () => {
+      const current = getRequest.result as QueueItem | undefined
+      if (!current) {
+        resolve()
+        return
+      }
+      const next = { ...current, ...updates }
+      const putRequest = store.put(next)
+      putRequest.onsuccess = () => resolve()
+      putRequest.onerror = () => reject(putRequest.error)
+    }
+    getRequest.onerror = () => reject(getRequest.error)
+  })
+}
+
+async function removeQueueItem(id: string) {
+  const db = await openQueueDb()
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(QUEUE_STORE, 'readwrite')
+    const store = transaction.objectStore(QUEUE_STORE)
+    const request = store.delete(id)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
+
+function getQueueId() {
+  if (crypto && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `queue_${Date.now()}_${Math.random().toString(16).slice(2)}`
 }

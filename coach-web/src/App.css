@@ -1,42 +1,332 @@
+:root {
+  --strava-orange: #FC4C02;
+  --strava-orange-hover: #e64402;
+  --strava-orange-light: #fff4f0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --border: #e0e0e0;
+  --border-light: #f0f0f0;
+  --background: #ffffff;
+  --background-light: #fafafa;
+  --card: #ffffff;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
 #root {
-  max-width: 1280px;
+  min-height: 100vh;
+  background: var(--background);
+}
+
+.app {
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 32px 24px 48px;
+  background: var(--background);
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Header */
+.coach-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-light);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.coach-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-light);
 }
 
+.tab {
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--strava-orange);
+  border-bottom-color: var(--strava-orange);
+}
+
+.coach-content {
+  display: grid;
+  gap: 24px;
+}
+
+/* Cards */
 .card {
-  padding: 2em;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s;
 }
 
-.read-the-docs {
-  color: #888;
+.card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.card.error {
+  border-color: #dc2626;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.card h2 {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card p {
+  margin: 12px 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.card code {
+  background: var(--background-light);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.card-header h2 {
+  margin: 0;
+}
+
+/* List */
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--background-light);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.list-item:hover {
+  border-color: var(--strava-orange);
+  box-shadow: var(--shadow);
+}
+
+.list-item-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.list-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.list-item-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chip-strength {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.chip-endurance {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.muted {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.muted.small {
+  font-size: 0.875rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-state .muted {
+  margin-bottom: 8px;
+}
+
+/* Buttons */
+.btn {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: var(--background);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--text-primary);
+  background: var(--background-light);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--strava-orange);
+  color: white;
+  border-color: var(--strava-orange);
+  box-shadow: 0 2px 8px rgba(252, 76, 2, 0.3);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--strava-orange-hover);
+  border-color: var(--strava-orange-hover);
+  box-shadow: 0 4px 12px rgba(252, 76, 2, 0.4);
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--background-light);
+}
+
+/* Login Screen */
+.login-container {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 80px 20px 40px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.login-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.login-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.login-form {
+  display: grid;
+  gap: 20px;
+}
+
+/* Forms */
+.field {
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.field input {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  background: var(--background);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--strava-orange);
+  box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.1);
+}
+
+.field input::placeholder {
+  color: var(--text-muted);
 }

@@ -1,47 +1,119 @@
 :root {
-  --ink: #0f172a;
-  --muted: #5f5c53;
-  --card: #fbf7f1;
-  --border: #e1d8cc;
-  --accent: #0f766e;
-  --accent-soft: #d0ede9;
-  --strength: #c2410c;
-  --endurance: #0369a1;
-  --shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+  --strava-orange: #FC4C02;
+  --strava-orange-hover: #e64402;
+  --strava-orange-light: #fff4f0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --border: #e0e0e0;
+  --border-light: #f0f0f0;
+  --background: #ffffff;
+  --background-light: #fafafa;
+  --card: #ffffff;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --strength: #dc2626;
+  --endurance: #2563eb;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --error: #dc2626;
 }
 
 #root {
   min-height: 100vh;
+  background: var(--background);
 }
 
 .app {
   max-width: 520px;
   margin: 0 auto;
-  padding: 28px 20px 40px;
+  padding: 24px 20px 40px;
+  background: var(--background);
 }
 
+/* Login Screen */
+.login-container {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 60px 20px 40px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.login-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.login-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.login-form {
+  display: grid;
+  gap: 20px;
+}
+
+.login-hint {
+  margin: 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* Today Header */
 .today-header {
-  margin-bottom: 22px;
+  margin-bottom: 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.logout-btn {
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.logout-btn:hover {
+  border-color: var(--text-secondary);
+  background: var(--background-light);
 }
 
 .today-label {
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.1em;
   font-size: 0.75rem;
-  color: var(--muted);
+  font-weight: 600;
+  color: var(--text-muted);
   margin: 0;
 }
 
 .today-date {
-  font-family: 'Newsreader', serif;
-  font-size: 2.2rem;
-  margin: 6px 0 4px;
-  color: var(--ink);
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 8px 0 4px;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 .today-subtitle {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
 .today-content {
@@ -50,17 +122,18 @@
   margin-bottom: 32px;
 }
 
+/* Week Overview */
 .week-overview {
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-light);
 }
 
 .week-overview-title {
   margin: 0 0 16px;
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -78,34 +151,55 @@
   align-items: center;
   gap: 12px;
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 
 .week-retry {
   padding: 8px 14px;
   font-size: 0.85rem;
+  border: 1px solid var(--border);
 }
 
 .week-empty {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .week-session-item {
-  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--ink);
+  border-radius: 8px;
+  color: var(--text-primary);
   font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.week-session-item:hover {
+  border-color: var(--strava-orange);
+  box-shadow: var(--shadow);
+}
+
+.pending-pill {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--strava-orange);
+  background: var(--strava-orange-light);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
 }
 
 .week-session-shimmer {
-  padding: 10px 14px;
+  padding: 12px 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -114,9 +208,9 @@
   height: 16px;
   background: linear-gradient(
     90deg,
-    var(--border) 0%,
-    #f4efe7 50%,
-    var(--border) 100%
+    var(--border-light) 0%,
+    #f5f5f5 50%,
+    var(--border-light) 100%
   );
   background-size: 200% 100%;
   border-radius: 4px;
@@ -132,28 +226,54 @@
   }
 }
 
+/* Cards */
 .card,
 .session-card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 18px;
+  border-radius: 12px;
+  padding: 20px;
   box-shadow: var(--shadow);
+  transition: box-shadow 0.2s;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-hover);
 }
 
 .card.error {
-  border-color: #fca5a5;
-  background: #fff1f2;
+  border-color: var(--error);
+  background: #fef2f2;
+  color: var(--error);
+}
+
+.card.warning {
+  border-color: var(--warning);
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.card.syncing {
+  border-color: var(--strava-orange);
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
+  text-align: center;
+  padding: 12px 18px;
+}
+
+.syncing-indicator {
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .card.empty {
   text-align: center;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .session-card {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .session-top {
@@ -164,23 +284,27 @@
 }
 
 .session-title {
-  margin: 0 0 6px;
-  font-size: 1.1rem;
-  color: var(--ink);
+  margin: 0 0 8px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
 }
 
 .session-prescription {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
+/* Chips & Badges */
 .chip {
-  border-radius: 999px;
+  border-radius: 16px;
   padding: 6px 12px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: white;
   flex-shrink: 0;
@@ -201,14 +325,14 @@
 }
 
 .status {
-  border-radius: 999px;
+  border-radius: 16px;
   padding: 4px 10px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  background: #f4efe7;
-  color: var(--muted);
+  background: var(--background-light);
+  color: var(--text-secondary);
 }
 
 .status-completed {
@@ -227,75 +351,136 @@
 }
 
 .status-logged {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
 }
 
 .status.logged {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
 }
 
-.session-actions {
-  display: grid;
-  gap: 10px;
+.status.pending {
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
 }
 
+/* Buttons */
 .btn {
-  border-radius: 14px;
+  border-radius: 8px;
   border: 1px solid var(--border);
-  padding: 12px 16px;
+  padding: 12px 20px;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
-  background: white;
-  color: var(--ink);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: var(--background);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--text-primary);
+  background: var(--background-light);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btn.primary {
-  background: var(--ink);
+  background: var(--strava-orange);
   color: white;
-  border-color: var(--ink);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+  border-color: var(--strava-orange);
+  box-shadow: 0 2px 8px rgba(252, 76, 2, 0.3);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--strava-orange-hover);
+  border-color: var(--strava-orange-hover);
+  box-shadow: 0 4px 12px rgba(252, 76, 2, 0.4);
 }
 
 .btn.ghost {
   background: transparent;
+  border-color: transparent;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--background-light);
 }
 
 .btn.icon {
-  border-radius: 999px;
-  padding: 6px 10px;
+  border-radius: 50%;
+  padding: 8px;
   font-size: 1rem;
   border-color: transparent;
-  background: #f4efe7;
+  background: var(--background-light);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* Forms */
+.field {
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.field input,
+.field textarea {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  background: var(--background);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--strava-orange);
+  box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.1);
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Modals */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding: 24px 18px;
+  z-index: 1000;
 }
 
 .modal {
   background: var(--card);
-  border-radius: 24px;
+  border-radius: 16px 16px 0 0;
   width: 100%;
   max-width: 520px;
-  padding: 20px;
-  box-shadow: var(--shadow);
+  padding: 24px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .modal-header {
@@ -307,39 +492,29 @@
 .modal-title {
   margin: 0;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.7rem;
-  color: var(--muted);
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .modal-subtitle {
   margin: 6px 0 0;
-  color: var(--muted);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
 .modal-body {
   display: grid;
-  gap: 14px;
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.field input,
-.field textarea {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  padding: 10px 12px;
-  font-size: 0.95rem;
-  background: white;
-  color: var(--ink);
+  gap: 16px;
 }
 
 .modal-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.session-actions {
   display: grid;
   gap: 10px;
 }
@@ -352,5 +527,9 @@
 
   .modal-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modal {
+    border-radius: 16px;
   }
 }
