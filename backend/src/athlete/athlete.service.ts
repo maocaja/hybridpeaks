@@ -271,4 +271,51 @@ export class AthleteService {
 
     return calculateWeekSummary(sessions);
   }
+
+  async getSessionsInRange(athleteUserId: string, from: string, to: string) {
+    const fromDate = new Date(`${from}T00:00:00.000Z`);
+    const toDate = new Date(`${to}T00:00:00.000Z`);
+
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      throw new BadRequestException('Invalid date range');
+    }
+
+    if (fromDate > toDate) {
+      throw new BadRequestException('from must be before to');
+    }
+
+    const sessions = await this.prisma.trainingSession.findMany({
+      where: {
+        weeklyPlan: {
+          athleteUserId,
+        },
+        date: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      select: {
+        id: true,
+        date: true,
+        type: true,
+        title: true,
+        status: true,
+        completedAt: true,
+        workoutLog: {
+          select: { id: true },
+        },
+      },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return sessions.map((session) => ({
+      id: session.id,
+      date: session.date,
+      type: session.type,
+      title: session.title,
+      status: session.status,
+      completedAt: session.completedAt,
+      hasLog: Boolean(session.workoutLog),
+    }));
+  }
 }
