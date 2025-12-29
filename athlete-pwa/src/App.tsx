@@ -4,6 +4,9 @@ import './App.css'
 function App() {
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [weekSessions, setWeekSessions] = useState<WeekSession[]>([])
+  const [weekError, setWeekError] = useState(false)
+  const [weekLoading, setWeekLoading] = useState(false)
+  const [dayKey, setDayKey] = useState(() => formatLocalDate(new Date()))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<TrainingSession | null>(
@@ -56,49 +59,55 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    let isMounted = true
+  const fetchWeekSessions = async () => {
+    setWeekLoading(true)
+    setWeekError(false)
 
-    const fetchWeekSessions = async () => {
-      try {
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const dayOfWeek = today.getDay()
-        const monday = new Date(today)
-        monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-        const sunday = new Date(monday)
-        sunday.setDate(monday.getDate() + 6)
+    try {
+      const today = new Date()
+      const { start, end } = getWeekRange(today)
+      const fromStr = formatLocalDate(start)
+      const toStr = formatLocalDate(end)
+      const todayKey = formatLocalDate(today)
 
-        const fromStr = monday.toISOString().split('T')[0]
-        const toStr = sunday.toISOString().split('T')[0]
-        const todayStr = today.toISOString().split('T')[0]
+      const data = await apiFetch<WeekSession[]>(
+        `/api/athlete/sessions?from=${fromStr}&to=${toStr}`,
+      )
 
-        const data = await apiFetch<WeekSession[]>(
-          `/api/athlete/sessions?from=${fromStr}&to=${toStr}`,
-        )
-        if (!isMounted) return
-
-        // Filter out today's sessions and completed/missed sessions
-        const remaining = data.filter(
-          (session) =>
-            session.date !== todayStr &&
+      const remaining = data
+        .filter((session) => {
+          const sessionKey = formatLocalDate(new Date(session.date))
+          return (
+            sessionKey !== todayKey &&
             session.status !== 'COMPLETED' &&
-            session.status !== 'MISSED',
+            session.status !== 'MISSED'
+          )
+        })
+        .sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         )
-        setWeekSessions(remaining)
-      } catch (err) {
-        if (!isMounted) return
-        // Silently fail for week overview - don't show error
-        console.error('Failed to load week sessions:', err)
-      }
-    }
 
+      setWeekSessions(remaining)
+    } catch (err) {
+      setWeekError(true)
+    } finally {
+      setWeekLoading(false)
+    }
+  }
+
+  useEffect(() => {
     fetchWeekSessions()
+  }, [dayKey])
 
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  useEffect(() => {
+    const now = new Date()
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    const timeout = window.setTimeout(() => {
+      setDayKey(formatLocalDate(new Date()))
+    }, Math.max(0, tomorrow.getTime() - now.getTime() + 1000))
+
+    return () => window.clearTimeout(timeout)
+  }, [dayKey])
 
   const todayLabel = useMemo(() => {
     const now = new Date()
@@ -123,6 +132,7 @@ function App() {
           session.id === sessionId ? { ...session, status } : session,
         ),
       )
+      fetchWeekSessions()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status')
     } finally {
@@ -173,6 +183,7 @@ function App() {
         ),
       )
       setActiveSession(null)
+      fetchWeekSessions()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to log session')
     } finally {
@@ -242,9 +253,33 @@ function App() {
           ))}
       </section>
 
-      {weekSessions.length > 0 && (
-        <section className="week-overview">
-          <h2 className="week-overview-title">This Week</h2>
+      <section className="week-overview">
+        <h2 className="week-overview-title">This Week</h2>
+        {weekError && (
+          <div className="week-error">
+            <span>Couldn&apos;t load week overview.</span>
+            <button
+              className="btn ghost week-retry"
+              onClick={fetchWeekSessions}
+              disabled={weekLoading}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {weekLoading && !weekError && (
+          <ul className="week-sessions-list">
+            {[1, 2, 3].map((i) => (
+              <li key={i} className="week-session-item week-session-shimmer">
+                <span className="shimmer-placeholder" />
+              </li>
+            ))}
+          </ul>
+        )}
+        {!weekLoading && !weekError && weekSessions.length === 0 && (
+          <p className="week-empty">No remaining sessions this week.</p>
+        )}
+        {!weekLoading && !weekError && weekSessions.length > 0 && (
           <ul className="week-sessions-list">
             {weekSessions.map((session) => (
               <li key={session.id} className="week-session-item">
@@ -252,8 +287,8 @@ function App() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       {activeSession && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -468,4 +503,22 @@ function buildEnduranceSummary(form: LogFormState) {
     rpe: form.rpe ? Number(form.rpe) : undefined,
     notes: form.notes || undefined,
   }
+}
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getWeekRange(date: Date) {
+  const base = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const day = base.getDay()
+  const offset = (day + 6) % 7
+  const start = new Date(base)
+  start.setDate(base.getDate() - offset)
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  return { start, end }
 }

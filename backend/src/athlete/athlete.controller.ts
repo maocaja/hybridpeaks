@@ -21,7 +21,7 @@ import { BenchmarksService } from '../benchmarks/benchmarks.service';
 import { UpdateSessionStatusDto } from './dto/update-session-status.dto';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
 import { QueryWeeklyPlanDto } from '../weekly-plans/dto/query-weekly-plan.dto';
-import { QuerySessionsDto } from '../coach/dto/query-sessions.dto';
+import { QuerySessionsDto } from './dto/query-sessions.dto';
 
 interface AuthenticatedRequest extends Request {
   user: User;

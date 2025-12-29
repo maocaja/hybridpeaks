@@ -73,6 +73,25 @@
   gap: 8px;
 }
 
+.week-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.week-retry {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
+.week-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .week-session-item {
   padding: 10px 14px;
   background: var(--card);
@@ -80,6 +99,37 @@
   border-radius: 12px;
   color: var(--ink);
   font-size: 0.95rem;
+}
+
+.week-session-shimmer {
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.shimmer-placeholder {
+  display: block;
+  height: 16px;
+  background: linear-gradient(
+    90deg,
+    var(--border) 0%,
+    #f4efe7 50%,
+    var(--border) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 4px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .card,
