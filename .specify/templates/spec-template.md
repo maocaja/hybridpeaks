@@ -1,115 +1,140 @@
-# Feature Specification: [FEATURE NAME]
+# Feature Specification: [FEATURE_NAME]
 
-**Feature Branch**: `[###-feature-name]`  
-**Created**: [DATE]  
-**Status**: Draft  
-**Input**: User description: "$ARGUMENTS"
-
-## User Scenarios & Testing *(mandatory)*
-
-<!--
-  IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
-  Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
-  you should still have a viable MVP (Minimum Viable Product) that delivers value.
-  
-  Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
-  Think of each story as a standalone slice of functionality that can be:
-  - Developed independently
-  - Tested independently
-  - Deployed independently
-  - Demonstrated to users independently
--->
-
-### User Story 1 - [Brief Title] (Priority: P1)
-
-[Describe this user journey in plain language]
-
-**Why this priority**: [Explain the value and why it has this priority level]
-
-**Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
-
-**Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
-2. **Given** [initial state], **When** [action], **Then** [expected outcome]
+**Feature ID**: [FEATURE_ID]  
+**Version**: 1.0  
+**Last Updated**: [DATE]  
+**Status**: Draft
 
 ---
 
-### User Story 2 - [Brief Title] (Priority: P2)
+## Overview
 
-[Describe this user journey in plain language]
+### Problem Statement
 
-**Why this priority**: [Explain the value and why it has this priority level]
+[What problem does this feature solve? What pain point are we addressing?]
 
-**Independent Test**: [Describe how this can be tested independently]
+### User Goals
 
-**Acceptance Scenarios**:
+[What do users want to accomplish with this feature?]
 
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+### Success Criteria
 
----
+[Define measurable, technology-agnostic outcomes. Each criterion must be verifiable without implementation details.]
 
-### User Story 3 - [Brief Title] (Priority: P3)
-
-[Describe this user journey in plain language]
-
-**Why this priority**: [Explain the value and why it has this priority level]
-
-**Independent Test**: [Describe how this can be tested independently]
-
-**Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+Examples:
+- Users can complete [task] in under [X] minutes
+- [Y]% of users successfully complete [workflow] on first attempt
+- System supports [N] concurrent users
+- Task completion rate improves by [X]%
 
 ---
 
-[Add more user stories as needed, each with an assigned priority]
+## User Scenarios
+
+### Primary User Flows
+
+[Describe the main user journeys step by step. Focus on WHAT users do, not HOW the system implements it.]
+
+**Scenario 1: [Name]**
+
+1. User does [action]
+2. System provides [result]
+3. User sees [outcome]
 
 ### Edge Cases
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right edge cases.
--->
+[What unusual but valid scenarios must be handled?]
 
-- What happens when [boundary condition]?
-- How does system handle [error scenario]?
+### Error Scenarios
 
-## Requirements *(mandatory)*
+[What can go wrong? How should the system respond?]
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right functional requirements.
--->
+---
 
-### Functional Requirements
+## Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+### Must Have (MVP)
 
-*Example of marking unclear requirements:*
+[Requirements that are absolutely necessary for launch. Each must be testable and unambiguous.]
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- **REQ-1**: [Requirement description]
+  - Acceptance: [How to verify this requirement is met]
 
-### Key Entities *(include if feature involves data)*
+### Should Have (Post-MVP)
 
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
+[Important requirements that can be deferred if necessary]
 
-## Success Criteria *(mandatory)*
+### Could Have (Future)
 
-<!--
-  ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
--->
+[Nice to have features for future consideration]
 
-### Measurable Outcomes
+---
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+## Key Entities
+
+[If the feature involves data, describe the main concepts/entities without implementation details]
+
+**Entity 1: [Name]**
+- Description: [What it represents]
+- Key attributes: [What information it contains]
+- Relationships: [How it relates to other entities]
+
+---
+
+## Non-Functional Requirements
+
+### Performance
+
+[Response times, throughput, resource usage expectations]
+
+### Usability
+
+[User experience expectations, accessibility requirements]
+
+### Reliability
+
+[Availability expectations, error handling, data integrity]
+
+### Security
+
+[Authentication, authorization, data protection requirements]
+
+---
+
+## Assumptions
+
+[What are we assuming to be true? What defaults have we chosen?]
+
+---
+
+## Dependencies
+
+[What other features, systems, or external services does this depend on?]
+
+---
+
+## Out of Scope
+
+[What is explicitly NOT included in this feature?]
+
+---
+
+## Open Questions
+
+[Use [NEEDS CLARIFICATION: specific question] for critical decisions that significantly impact scope]
+
+[Maximum 3 clarification markers - prioritize by scope > security/privacy > UX > technical details]
+
+---
+
+## Validation Checklist
+
+Before proceeding to planning, this specification must meet:
+
+- [ ] No implementation details (languages, frameworks, APIs)
+- [ ] All requirements are testable and unambiguous
+- [ ] Success criteria are measurable and technology-agnostic
+- [ ] User scenarios cover primary flows
+- [ ] Edge cases identified
+- [ ] No [NEEDS CLARIFICATION] markers remain
+- [ ] Assumptions and dependencies documented

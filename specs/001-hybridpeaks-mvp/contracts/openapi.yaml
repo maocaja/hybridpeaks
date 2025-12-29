@@ -1,0 +1,1319 @@
+openapi: 3.0.3
+info:
+  title: HybridPeaks API
+  description: REST API for HybridPeaks training platform MVP
+  version: 1.0.0
+  contact:
+    name: HybridPeaks Team
+
+servers:
+  - url: https://api.hybridpeaks.com/v1
+    description: Production server
+  - url: https://api-staging.hybridpeaks.com/v1
+    description: Staging server
+  - url: http://localhost:3000/v1
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication and user management
+  - name: Planning
+    description: Training plan creation and management (coaches)
+  - name: Today
+    description: Daily training view (athletes)
+  - name: Logging
+    description: Workout logging (athletes)
+  - name: Progress
+    description: Weekly summaries and progress tracking
+  - name: Benchmarks
+    description: Athlete performance metrics
+  - name: Exercises
+    description: Exercise catalog
+
+paths:
+  # ==================== AUTH ====================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: Create a new user account (coach or athlete)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Authenticate user and receive tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many login attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Exchange refresh token for new access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: Invalidate refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      description: Retrieve authenticated user profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== PLANNING (COACHES) ====================
+  /training-plans:
+    post:
+      tags: [Planning]
+      summary: Create training plan
+      description: Create a weekly training plan for an athlete (coaches only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /training-plans/{planId}:
+    get:
+      tags: [Planning]
+      summary: Get training plan
+      description: Retrieve a specific training plan with sessions
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Training plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlanDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Planning]
+      summary: Update training plan
+      description: Update a training plan (coaches only)
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Plan updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlan'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /training-plans/{planId}/sessions:
+    post:
+      tags: [Planning]
+      summary: Add session to plan
+      description: Add a training session to an existing plan (coaches only)
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /sessions/{sessionId}:
+    get:
+      tags: [Planning]
+      summary: Get training session
+      description: Retrieve session details
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Planning]
+      summary: Update training session
+      description: Update session prescription (coaches only)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSessionRequest'
+      responses:
+        '200':
+          description: Session updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingSession'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [Planning]
+      summary: Delete training session
+      description: Remove session from plan (coaches only)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== TODAY VIEW (ATHLETES) ====================
+  /today:
+    get:
+      tags: [Today]
+      summary: Get today's training
+      description: Retrieve all sessions scheduled for today (athletes)
+      responses:
+        '200':
+          description: Today's sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TodaySession'
+
+  # ==================== WORKOUT LOGGING (ATHLETES) ====================
+  /workout-logs:
+    post:
+      tags: [Logging]
+      summary: Log workout
+      description: Record a completed workout (athletes only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkoutLogRequest'
+      responses:
+        '201':
+          description: Workout logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLog'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Workout already logged for this session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workout-logs/{logId}:
+    get:
+      tags: [Logging]
+      summary: Get workout log
+      description: Retrieve a specific workout log
+      parameters:
+        - name: logId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workout log details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLog'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sync/workout-logs:
+    post:
+      tags: [Logging]
+      summary: Batch sync workout logs
+      description: Sync multiple workout logs from offline queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                logs:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateWorkoutLogRequest'
+      responses:
+        '200':
+          description: Sync results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  synced:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        clientId:
+                          type: string
+                        error:
+                          type: string
+
+  # ==================== PROGRESS (ATHLETES & COACHES) ====================
+  /athletes/{athleteId}/weekly-summary:
+    get:
+      tags: [Progress]
+      summary: Get weekly training summary
+      description: Retrieve adherence, volume, and session details for a week
+      parameters:
+        - name: athleteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: weekStartDate
+          in: query
+          required: false
+          description: Monday of the week (defaults to current week)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Weekly summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /athletes/{athleteId}/ai-summary:
+    get:
+      tags: [Progress]
+      summary: Get AI weekly summary
+      description: Retrieve AI-generated insights for a week
+      parameters:
+        - name: athleteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: weekEndDate
+          in: query
+          required: false
+          description: Sunday of the week (defaults to previous week)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: AI summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIWeeklySummary'
+        '404':
+          description: No summary available for this week
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ==================== BENCHMARKS ====================
+  /athletes/{athleteId}/benchmarks:
+    get:
+      tags: [Benchmarks]
+      summary: Get athlete benchmarks
+      description: Retrieve all benchmark metrics for an athlete
+      parameters:
+        - name: athleteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Benchmark metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BenchmarkMetric'
+
+    post:
+      tags: [Benchmarks]
+      summary: Add benchmark metric
+      description: Record a new benchmark (coaches only)
+      parameters:
+        - name: athleteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBenchmarkRequest'
+      responses:
+        '201':
+          description: Benchmark created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkMetric'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== EXERCISES ====================
+  /exercises:
+    get:
+      tags: [Exercises]
+      summary: List exercises
+      description: Retrieve exercise catalog (system + coach's custom)
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ExerciseCategory'
+        - name: search
+          in: query
+          required: false
+          description: Search by name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exercise list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exercise'
+
+    post:
+      tags: [Exercises]
+      summary: Create custom exercise
+      description: Create a coach-specific exercise (coaches only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExerciseRequest'
+      responses:
+        '201':
+          description: Exercise created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exercise'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== COACH DASHBOARD ====================
+  /coaches/me/athletes:
+    get:
+      tags: [Planning]
+      summary: Get coach's athlete roster
+      description: List all athletes assigned to the coach
+      responses:
+        '200':
+          description: Athlete list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AthleteProfile'
+
+  # ==================== HEALTH ====================
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Service health status
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                  services:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum: [up, down]
+                      redis:
+                        type: string
+                        enum: [up, down]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ==================== AUTH SCHEMAS ====================
+    RegisterRequest:
+      type: object
+      required: [email, password, role, name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 12
+          description: Min 12 chars, must include uppercase, lowercase, digit
+        role:
+          type: string
+          enum: [coach, athlete]
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        coachId:
+          type: string
+          format: uuid
+          description: Required if role is athlete
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token (15 min expiry)
+        refreshToken:
+          type: string
+          description: Refresh token (7 day expiry)
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          type: string
+          enum: [coach, athlete]
+        name:
+          type: string
+        coachId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    # ==================== TRAINING PLAN SCHEMAS ====================
+    CreatePlanRequest:
+      type: object
+      required: [athleteId, weekStartDate]
+      properties:
+        athleteId:
+          type: string
+          format: uuid
+        weekStartDate:
+          type: string
+          format: date
+          description: Must be a Monday
+
+    UpdatePlanRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, completed, archived]
+
+    TrainingPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        athleteId:
+          type: string
+          format: uuid
+        coachId:
+          type: string
+          format: uuid
+        weekStartDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, completed, archived]
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TrainingPlanDetail:
+      allOf:
+        - $ref: '#/components/schemas/TrainingPlan'
+        - type: object
+          properties:
+            sessions:
+              type: array
+              items:
+                $ref: '#/components/schemas/TrainingSession'
+
+    # ==================== TRAINING SESSION SCHEMAS ====================
+    CreateSessionRequest:
+      type: object
+      required: [date, type, prescription]
+      properties:
+        date:
+          type: string
+          format: date
+        type:
+          type: string
+          enum: [strength, endurance]
+        prescription:
+          oneOf:
+            - $ref: '#/components/schemas/StrengthPrescription'
+            - $ref: '#/components/schemas/EndurancePrescription'
+        focus:
+          type: string
+          maxLength: 200
+          example: "Lower Body Power"
+        estimatedDuration:
+          type: integer
+          minimum: 1
+          maximum: 300
+          description: Estimated minutes
+
+    UpdateSessionRequest:
+      type: object
+      properties:
+        prescription:
+          oneOf:
+            - $ref: '#/components/schemas/StrengthPrescription'
+            - $ref: '#/components/schemas/EndurancePrescription'
+        focus:
+          type: string
+        estimatedDuration:
+          type: integer
+
+    TrainingSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        type:
+          type: string
+          enum: [strength, endurance]
+        prescription:
+          type: object
+        focus:
+          type: string
+        estimatedDuration:
+          type: integer
+        workoutLog:
+          $ref: '#/components/schemas/WorkoutLog'
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TodaySession:
+      allOf:
+        - $ref: '#/components/schemas/TrainingSession'
+        - type: object
+          properties:
+            completed:
+              type: boolean
+              description: Whether workout has been logged
+
+    StrengthPrescription:
+      type: object
+      required: [exercises]
+      properties:
+        exercises:
+          type: array
+          items:
+            type: object
+            required: [exerciseId, sets, reps, intensity]
+            properties:
+              exerciseId:
+                type: string
+                format: uuid
+              sets:
+                type: integer
+                minimum: 1
+                maximum: 20
+              reps:
+                type: integer
+                minimum: 1
+                maximum: 50
+              intensity:
+                type: object
+                required: [type, value]
+                properties:
+                  type:
+                    type: string
+                    enum: [percent_1rm, rpe]
+                  value:
+                    type: number
+                    minimum: 0
+                    maximum: 100
+              restSeconds:
+                type: integer
+                minimum: 0
+                maximum: 600
+              tempo:
+                type: string
+                pattern: '^[0-9]{4}$'
+                example: "3010"
+
+    EndurancePrescription:
+      type: object
+      required: [modality, duration, intensity]
+      properties:
+        modality:
+          type: string
+          enum: [run, bike, row, swim]
+        duration:
+          type: object
+          required: [value, unit]
+          properties:
+            value:
+              type: number
+              minimum: 1
+            unit:
+              type: string
+              enum: [minutes, hours]
+        distance:
+          type: object
+          properties:
+            value:
+              type: number
+              minimum: 0.1
+            unit:
+              type: string
+              enum: [km, miles, meters]
+        intensity:
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: [heart_rate_zone, ftp_percent, pace_zone]
+            zone:
+              type: integer
+              minimum: 1
+              maximum: 5
+
+    # ==================== WORKOUT LOG SCHEMAS ====================
+    CreateWorkoutLogRequest:
+      type: object
+      required: [sessionId, completedAt, actualData]
+      properties:
+        clientId:
+          type: string
+          description: Client-generated UUID for idempotency
+        sessionId:
+          type: string
+          format: uuid
+        completedAt:
+          type: string
+          format: date-time
+        actualData:
+          oneOf:
+            - $ref: '#/components/schemas/StrengthActual'
+            - $ref: '#/components/schemas/EnduranceActual'
+        rpe:
+          type: integer
+          minimum: 1
+          maximum: 10
+        notes:
+          type: string
+          maxLength: 1000
+
+    WorkoutLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        athleteId:
+          type: string
+          format: uuid
+        completedAt:
+          type: string
+          format: date-time
+        actualData:
+          type: object
+        rpe:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        syncStatus:
+          type: string
+          enum: [pending, synced, error]
+        createdAt:
+          type: string
+          format: date-time
+
+    StrengthActual:
+      type: object
+      required: [exercises]
+      properties:
+        exercises:
+          type: array
+          items:
+            type: object
+            required: [exerciseId, sets]
+            properties:
+              exerciseId:
+                type: string
+                format: uuid
+              sets:
+                type: array
+                items:
+                  type: object
+                  required: [weight, reps]
+                  properties:
+                    weight:
+                      type: number
+                    reps:
+                      type: integer
+                    rpe:
+                      type: integer
+                      minimum: 1
+                      maximum: 10
+              modified:
+                type: boolean
+                description: True if exercise was substituted or skipped
+
+    EnduranceActual:
+      type: object
+      required: [modality, duration, completed]
+      properties:
+        modality:
+          type: string
+          enum: [run, bike, row, swim]
+        duration:
+          type: object
+          required: [value, unit]
+          properties:
+            value:
+              type: number
+            unit:
+              type: string
+              enum: [minutes, hours]
+        distance:
+          type: object
+          properties:
+            value:
+              type: number
+            unit:
+              type: string
+              enum: [km, miles, meters]
+        avgHeartRate:
+          type: integer
+          nullable: true
+        avgPower:
+          type: integer
+          nullable: true
+        completed:
+          type: boolean
+
+    # ==================== PROGRESS SCHEMAS ====================
+    WeeklySummary:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        weekEndDate:
+          type: string
+          format: date
+        adherenceRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 0.0-1.0 (percentage as decimal)
+        totalVolume:
+          type: object
+          properties:
+            strength:
+              type: string
+              example: "1200kg"
+            endurance:
+              type: string
+              example: "240min"
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              type:
+                type: string
+                enum: [strength, endurance]
+              planned:
+                type: boolean
+              completed:
+                type: boolean
+              rpe:
+                type: integer
+                nullable: true
+
+    AIWeeklySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        athleteId:
+          type: string
+          format: uuid
+        weekEndDate:
+          type: string
+          format: date
+        adherenceRate:
+          type: number
+        totalVolume:
+          type: object
+          properties:
+            strength:
+              type: string
+            endurance:
+              type: string
+        fatigueAnalysis:
+          type: string
+          example: "Average RPE was 8.2, slightly above optimal training range."
+        patterns:
+          type: array
+          items:
+            type: string
+          example:
+            - "Completed 6 of 8 planned sessions"
+            - "Missed both endurance sessions"
+        suggestions:
+          type: array
+          items:
+            type: object
+            properties:
+              suggestion:
+                type: string
+              reasoning:
+                type: string
+        disclaimer:
+          type: string
+          example: "This is training guidance, not medical advice."
+        generatedAt:
+          type: string
+          format: date-time
+
+    # ==================== BENCHMARK SCHEMAS ====================
+    CreateBenchmarkRequest:
+      type: object
+      required: [metricType, value, unit, establishedAt]
+      properties:
+        metricType:
+          $ref: '#/components/schemas/MetricType'
+        value:
+          type: number
+          minimum: 0
+        unit:
+          type: string
+          example: "kg"
+        exerciseId:
+          type: string
+          format: uuid
+          description: Required for 1RM metrics
+        establishedAt:
+          type: string
+          format: date
+
+    BenchmarkMetric:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        athleteId:
+          type: string
+          format: uuid
+        metricType:
+          $ref: '#/components/schemas/MetricType'
+        value:
+          type: number
+        unit:
+          type: string
+        exerciseId:
+          type: string
+          format: uuid
+          nullable: true
+        establishedAt:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    MetricType:
+      type: string
+      enum:
+        - "1RM"
+        - FTP
+        - HR_zone_1
+        - HR_zone_2
+        - HR_zone_3
+        - HR_zone_4
+        - HR_zone_5
+        - pace_5k
+        - pace_10k
+        - pace_half_marathon
+
+    # ==================== EXERCISE SCHEMAS ====================
+    CreateExerciseRequest:
+      type: object
+      required: [name, category, muscleGroups]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        category:
+          $ref: '#/components/schemas/ExerciseCategory'
+        muscleGroups:
+          type: array
+          items:
+            type: string
+          example: ["quads", "glutes"]
+        isPublic:
+          type: boolean
+          default: false
+
+    Exercise:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/ExerciseCategory'
+        muscleGroups:
+          type: array
+          items:
+            type: string
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: Null for system exercises
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ExerciseCategory:
+      type: string
+      enum:
+        - squat
+        - hinge
+        - press
+        - pull
+        - accessory
+        - core
+        - plyometric
+
+    # ==================== OTHER SCHEMAS ====================
+    AthleteProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        currentWeekAdherence:
+          type: number
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
