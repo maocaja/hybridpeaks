@@ -3,9 +3,18 @@ import './App.css'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!getAuthToken())
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginError, setLoginError] = useState<string | null>(null)
   const [loginLoading, setLoginLoading] = useState(false)
+  const [registerForm, setRegisterForm] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+  })
+  const [registerError, setRegisterError] = useState<string | null>(null)
+  const [registerLoading, setRegisterLoading] = useState(false)
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [weekSessions, setWeekSessions] = useState<WeekSession[]>([])
   const [weekError, setWeekError] = useState(false)
@@ -75,21 +84,105 @@ function App() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('token')
-    setIsAuthenticated(false)
-    setSessions([])
-    setWeekSessions([])
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setRegisterError(null)
+
+    const email = registerForm.email.trim()
+    if (!isValidEmail(email)) {
+      setRegisterError('Enter a valid email.')
+      return
+    }
+    if (registerForm.password.length < 8) {
+      setRegisterError('Password must be at least 8 characters.')
+      return
+    }
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setRegisterError('Passwords do not match.')
+      return
+    }
+
+    setRegisterLoading(true)
+
+    try {
+      const registerResponse = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password: registerForm.password,
+          role: 'ATHLETE',
+        }),
+      })
+
+      if (!registerResponse.ok) {
+        const data = await registerResponse.json().catch(() => ({}))
+        throw new Error(data.message || 'Registration failed')
+      }
+
+      const registerData = (await registerResponse.json().catch(() => null)) as
+        | { accessToken?: string; refreshToken?: string }
+        | null
+
+      if (registerData?.accessToken) {
+        localStorage.setItem('accessToken', registerData.accessToken)
+        if (registerData.refreshToken) {
+          localStorage.setItem('refreshToken', registerData.refreshToken)
+        }
+      } else {
+        await handleDirectLogin(email, registerForm.password)
+      }
+
+      setIsAuthenticated(true)
+      setRegisterForm({ email: '', password: '', confirmPassword: '' })
+      setAuthMode('login')
+    } catch (err) {
+      setRegisterError(err instanceof Error ? err.message : 'Registration failed')
+    } finally {
+      setRegisterLoading(false)
+    }
   }
+
+  const handleDirectLogin = async (email: string, password: string) => {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.message || 'Login failed')
+    }
+
+    const data = (await response.json()) as {
+      accessToken: string
+      refreshToken?: string
+    }
+
+    localStorage.setItem('accessToken', data.accessToken)
+    if (data.refreshToken) {
+      localStorage.setItem('refreshToken', data.refreshToken)
+    }
+  }
+
 
   const refreshQueueState = useCallback(async () => {
     const items = await listQueueItems()
     const unique = Array.from(new Set(items.map((item) => item.sessionId)))
     setPendingSessionIds(unique)
     return items
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('token')
+    setIsAuthenticated(false)
+    setCurrentUser(null)
+    setSessions([])
+    setWeekSessions([])
   }, [])
 
   const fetchToday = useCallback(async () => {
@@ -105,11 +198,15 @@ function App() {
       })
       setSessions(sorted)
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleLogout()
+        return
+      }
       setError(err instanceof Error ? err.message : 'Failed to load sessions')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [handleLogout])
 
   const fetchWeekSessions = useCallback(async () => {
     setWeekLoading(true)
@@ -141,11 +238,15 @@ function App() {
 
       setWeekSessions(remaining)
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleLogout()
+        return
+      }
       setWeekError(true)
     } finally {
       setWeekLoading(false)
     }
-  }, [])
+  }, [handleLogout])
 
   const replayQueue = useCallback(
     async (items?: QueueItem[]) => {
@@ -168,7 +269,13 @@ function App() {
           continue
         }
 
-        const { method, url, body } = item.request
+        const method = item.method ?? item.request?.method
+        const url = item.url ?? item.request?.url
+        const body = getQueueBody(item)
+        if (!method || !url) {
+          await removeQueueItem(item.id)
+          continue
+        }
         try {
           const authHeader = buildAuthHeader()
           const response = await fetch(url, {
@@ -177,7 +284,7 @@ function App() {
               'Content-Type': 'application/json',
               ...(authHeader.Authorization ? authHeader : {}),
             },
-            body,
+            body: body ? JSON.stringify(body) : undefined,
           })
 
           if (response.ok) {
@@ -186,11 +293,21 @@ function App() {
             continue
           }
 
+          if (response.status === 401 || response.status === 403) {
+            setSyncWarning('Session pending sync — please log in again')
+            break
+          }
+
+          if (response.status === 409 || response.status === 400) {
+            if (item.kind === 'LOG') {
+              await removeQueueItem(item.id)
+              continue
+            }
+          }
+
           if (response.status >= 400 && response.status < 500) {
             await removeQueueItem(item.id)
-            if (response.status !== 409 && response.status !== 400) {
-              setSyncWarning('Some actions could not be synced.')
-            }
+            setSyncWarning('Some actions could not be synced.')
             continue
           }
 
@@ -232,6 +349,11 @@ function App() {
       fetchToday()
       fetchWeekSessions()
       refreshQueueState().then((items) => replayQueue(items))
+      apiFetch<CurrentUser>('/api/auth/me')
+        .then((data) => setCurrentUser(data))
+        .catch(() => {
+          setCurrentUser(null)
+        })
     }
   }, [isAuthenticated, fetchToday, fetchWeekSessions, refreshQueueState, replayQueue])
 
@@ -286,6 +408,9 @@ function App() {
     setError(null)
 
     try {
+      if (!navigator.onLine) {
+        throw new NetworkError('Offline')
+      }
       await apiFetch(`/api/athlete/sessions/${sessionId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
@@ -302,11 +427,9 @@ function App() {
         await enqueueQueueItem({
           kind: 'STATUS',
           sessionId,
-          request: {
-            method: 'PATCH',
-            url: `/api/athlete/sessions/${sessionId}/status`,
-            body: JSON.stringify({ status }),
-          },
+          method: 'PATCH',
+          url: `/api/athlete/sessions/${sessionId}/status`,
+          body: { status },
         })
         setSessions((prev) =>
           prev.map((session) =>
@@ -348,6 +471,9 @@ function App() {
         : buildEnduranceSummary(logForm)
 
     try {
+      if (!navigator.onLine) {
+        throw new NetworkError('Offline')
+      }
       await apiFetch(`/api/athlete/sessions/${activeSession.id}/log`, {
         method: 'POST',
         body: JSON.stringify({ summary }),
@@ -373,20 +499,16 @@ function App() {
         await enqueueQueueItem({
           kind: 'LOG',
           sessionId: activeSession.id,
-          request: {
-            method: 'POST',
-            url: `/api/athlete/sessions/${activeSession.id}/log`,
-            body: JSON.stringify({ summary }),
-          },
+          method: 'POST',
+          url: `/api/athlete/sessions/${activeSession.id}/log`,
+          body: { summary },
         })
         await enqueueQueueItem({
           kind: 'STATUS',
           sessionId: activeSession.id,
-          request: {
-            method: 'PATCH',
-            url: `/api/athlete/sessions/${activeSession.id}/status`,
-            body: JSON.stringify({ status: 'COMPLETED' }),
-          },
+          method: 'PATCH',
+          url: `/api/athlete/sessions/${activeSession.id}/status`,
+          body: { status: 'COMPLETED' },
         })
         setSessions((prev) =>
           prev.map((session) =>
@@ -442,47 +564,123 @@ function App() {
               Track your progress and execute your training. Built for hybrid athletes.
             </p>
           </header>
-          <form className="login-form" onSubmit={handleLogin}>
-            {loginError && <div className="card error">{loginError}</div>}
-            <label className="field">
-              <span>Email</span>
-              <input
-                type="email"
-                value={loginForm.email}
-                onChange={(e) =>
-                  setLoginForm((prev) => ({ ...prev, email: e.target.value }))
-                }
-                placeholder="athlete@example.com"
-                required
+          {authMode === 'login' ? (
+            <form className="login-form" onSubmit={handleLogin}>
+              {loginError && <div className="card error">{loginError}</div>}
+              <label className="field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={loginForm.email}
+                  onChange={(e) =>
+                    setLoginForm((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  placeholder="athlete@example.com"
+                  required
+                  disabled={loginLoading}
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(e) =>
+                    setLoginForm((prev) => ({ ...prev, password: e.target.value }))
+                  }
+                  placeholder="••••••••"
+                  required
+                  disabled={loginLoading}
+                  minLength={8}
+                />
+              </label>
+              <button
+                type="submit"
+                className="btn primary"
                 disabled={loginLoading}
-              />
-            </label>
-            <label className="field">
-              <span>Password</span>
-              <input
-                type="password"
-                value={loginForm.password}
-                onChange={(e) =>
-                  setLoginForm((prev) => ({ ...prev, password: e.target.value }))
-                }
-                placeholder="••••••••"
-                required
-                disabled={loginLoading}
-                minLength={8}
-              />
-            </label>
-            <button
-              type="submit"
-              className="btn primary"
-              disabled={loginLoading}
-            >
-              {loginLoading ? 'Logging in...' : 'Log In'}
-            </button>
-            <p className="login-hint">
-              Don't have an account? Register via API or ask your coach for an
-              invitation.
-            </p>
-          </form>
+              >
+                {loginLoading ? 'Logging in...' : 'Log In'}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  setLoginError(null)
+                  setAuthMode('register')
+                }}
+              >
+                Create account
+              </button>
+              <p className="login-hint">
+                Already invited? Create an account, then paste your invitation token.
+              </p>
+            </form>
+          ) : (
+            <form className="login-form" onSubmit={handleRegister}>
+              {registerError && <div className="card error">{registerError}</div>}
+              <label className="field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={registerForm.email}
+                  onChange={(e) =>
+                    setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  placeholder="athlete@example.com"
+                  required
+                  disabled={registerLoading}
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={registerForm.password}
+                  onChange={(e) =>
+                    setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+                  }
+                  placeholder="Minimum 8 characters"
+                  required
+                  minLength={8}
+                  disabled={registerLoading}
+                />
+              </label>
+              <label className="field">
+                <span>Confirm Password</span>
+                <input
+                  type="password"
+                  value={registerForm.confirmPassword}
+                  onChange={(e) =>
+                    setRegisterForm((prev) => ({
+                      ...prev,
+                      confirmPassword: e.target.value,
+                    }))
+                  }
+                  placeholder="Repeat password"
+                  required
+                  minLength={8}
+                  disabled={registerLoading}
+                />
+              </label>
+              <button
+                type="submit"
+                className="btn primary"
+                disabled={registerLoading}
+              >
+                {registerLoading ? 'Creating...' : 'Create account'}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  setRegisterError(null)
+                  setAuthMode('login')
+                }}
+              >
+                Back to login
+              </button>
+            </form>
+          )}
         </div>
       </div>
     )
@@ -522,13 +720,18 @@ function App() {
           <h1 className="today-date">{todayLabel}</h1>
           <p className="today-subtitle">Stay on track. One session at a time.</p>
         </div>
-        <button
-          className="btn ghost logout-btn"
-          onClick={handleLogout}
-          title="Log out"
-        >
-          Logout
-        </button>
+        <div className="header-actions">
+          {currentUser && (
+            <p className="logged-in-text">Logged in as: {currentUser.email}</p>
+          )}
+          <button
+            className="btn ghost logout-btn"
+            onClick={handleLogout}
+            title="Log out"
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <section className="today-content">
@@ -752,20 +955,21 @@ interface WeekSession {
 
 type QueueKind = 'STATUS' | 'LOG'
 
-interface QueueRequest {
-  method: 'PATCH' | 'POST'
-  url: string
-  body?: string
-}
-
 interface QueueItem {
   id: string
   createdAt: number
   kind: QueueKind
   sessionId: string
-  request: QueueRequest
+  method: 'PATCH' | 'POST'
+  url: string
+  body?: Record<string, unknown>
   attempts: number
   lastError?: string
+  request?: {
+    method: 'PATCH' | 'POST'
+    url: string
+    body?: string
+  }
 }
 
 interface LogFormState {
@@ -776,6 +980,11 @@ interface LogFormState {
 
 interface ApiErrorPayload {
   message?: string
+}
+
+interface CurrentUser {
+  email: string
+  role: string
 }
 
 const AUTH_TOKEN_KEYS = ['authToken', 'accessToken', 'token']
@@ -806,6 +1015,39 @@ function buildAuthHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('refreshToken')
+  if (!refreshToken) {
+    return null
+  }
+
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const data = (await response.json()) as {
+      accessToken: string
+      refreshToken?: string
+    }
+
+    localStorage.setItem('accessToken', data.accessToken)
+    if (data.refreshToken) {
+      localStorage.setItem('refreshToken', data.refreshToken)
+    }
+
+    return data.accessToken
+  } catch {
+    return null
+  }
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken()
   const headers = new Headers(options.headers)
@@ -819,6 +1061,27 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     response = await fetch(path, { ...options, headers })
   } catch (err) {
     throw new NetworkError('Network error')
+  }
+
+  // If 401, try to refresh token and retry once
+  if (response.status === 401) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      // Retry the request with new token
+      headers.set('Authorization', `Bearer ${newToken}`)
+      try {
+        response = await fetch(path, { ...options, headers })
+      } catch (err) {
+        throw new NetworkError('Network error')
+      }
+    } else {
+      // Refresh failed, clear auth and throw error
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('token')
+      throw new ApiError('Session expired. Please log in again.', 401)
+    }
   }
 
   if (!response.ok) {
@@ -926,6 +1189,24 @@ function getWeekRange(date: Date) {
   const end = new Date(start)
   end.setDate(start.getDate() + 6)
   return { start, end }
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function getQueueBody(item: QueueItem) {
+  if (item.body) return item.body
+  if (!item.request?.body) return undefined
+  try {
+    const parsed = JSON.parse(item.request.body) as unknown
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as Record<string, unknown>
+    }
+  } catch (err) {
+    return undefined
+  }
+  return undefined
 }
 
 function openQueueDb(): Promise<IDBDatabase> {

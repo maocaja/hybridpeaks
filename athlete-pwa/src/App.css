@@ -108,6 +108,18 @@
   gap: 16px;
 }
 
+.header-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.logged-in-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
 .logout-btn {
   padding: 8px 16px;
   font-size: 0.875rem;

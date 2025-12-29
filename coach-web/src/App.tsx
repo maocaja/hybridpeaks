@@ -36,6 +36,34 @@ interface WeeklyPlan {
   sessions: WeeklyPlanSession[]
 }
 
+interface WeekSummary {
+  plannedSessionsCount: number
+  completedSessionsCount: number
+  missedSessionsCount: number
+  adherenceRate: number
+  strengthCount: number
+  enduranceCount: number
+}
+
+type SessionStatus = 'PLANNED' | 'COMPLETED' | 'MISSED' | 'MODIFIED'
+
+interface CoachWeekSession {
+  id: string
+  date: string
+  title: string
+  type: SessionType
+  status: SessionStatus
+  hasLog: boolean
+}
+
+interface WorkoutLog {
+  id: string
+  sessionId: string
+  type: SessionType
+  summary: Record<string, unknown>
+  createdAt: string
+}
+
 interface PlanSessionDraft {
   clientId: string
   date: string
@@ -72,7 +100,9 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false)
   
   // Dashboard state
-  const [activeTab, setActiveTab] = useState<'athletes' | 'exercises' | 'plans'>('athletes')
+  const [activeTab, setActiveTab] = useState<
+    'athletes' | 'exercises' | 'plans' | 'summary' | 'week'
+  >('athletes')
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [loading, setLoading] = useState(false)
@@ -90,6 +120,20 @@ function App() {
   const [planMessage, setPlanMessage] = useState<string | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
   const [planBuilderActive, setPlanBuilderActive] = useState(false)
+  const [summaryAthleteId, setSummaryAthleteId] = useState('')
+  const [summaryWeekDate, setSummaryWeekDate] = useState('')
+  const [summaryData, setSummaryData] = useState<WeekSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [weekAthleteId, setWeekAthleteId] = useState('')
+  const [weekDate, setWeekDate] = useState('')
+  const [weekSessions, setWeekSessions] = useState<CoachWeekSession[]>([])
+  const [weekLoading, setWeekLoading] = useState(false)
+  const [weekError, setWeekError] = useState<string | null>(null)
+  const [selectedSession, setSelectedSession] = useState<CoachWeekSession | null>(null)
+  const [logLoading, setLogLoading] = useState(false)
+  const [logError, setLogError] = useState<string | null>(null)
+  const [logData, setLogData] = useState<WorkoutLog | null>(null)
   const [planSuccess, setPlanSuccess] = useState(false)
 
   const apiFetch = useCallback(async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
@@ -217,12 +261,20 @@ function App() {
         fetchAthletes()
       } else if (activeTab === 'exercises') {
         fetchExercises()
-      } else {
+      } else if (activeTab === 'plans') {
         if (athletes.length === 0) {
           fetchAthletes()
         }
         if (exercises.length === 0) {
           fetchExercises()
+        }
+      } else if (activeTab === 'summary') {
+        if (athletes.length === 0) {
+          fetchAthletes()
+        }
+      } else {
+        if (athletes.length === 0) {
+          fetchAthletes()
         }
       }
     }
@@ -582,6 +634,138 @@ function App() {
     }
   }
 
+  const loadWeekSummary = useCallback(async () => {
+    if (!summaryAthleteId || !summaryWeekDate) {
+      setSummaryError('Select an athlete and week.')
+      return
+    }
+    const weekStart = normalizeWeekStart(summaryWeekDate)
+    if (!weekStart) {
+      setSummaryError('Select a valid week.')
+      return
+    }
+
+    setSummaryLoading(true)
+    setSummaryError(null)
+    setSummaryData(null)
+
+    try {
+      const data = await apiFetch<WeekSummary>(
+        `/api/coach/athletes/${summaryAthleteId}/week-summary?weekStart=${weekStart}`,
+      )
+      setSummaryData(data)
+    } catch (err) {
+      setSummaryError(
+        err instanceof Error ? err.message : 'Failed to load summary',
+      )
+    } finally {
+      setSummaryLoading(false)
+    }
+  }, [summaryAthleteId, summaryWeekDate, apiFetch])
+
+  const loadWeekSessions = useCallback(async () => {
+    if (!weekAthleteId || !weekDate) {
+      setWeekError('Select an athlete and week.')
+      return
+    }
+    const weekStart = normalizeWeekStart(weekDate)
+    if (!weekStart) {
+      setWeekError('Select a valid week.')
+      return
+    }
+    const weekEnd = addDays(weekStart, 6)
+
+    setWeekLoading(true)
+    setWeekError(null)
+    setWeekSessions([])
+
+    try {
+      const data = await apiFetch<CoachWeekSession[]>(
+        `/api/coach/athletes/${weekAthleteId}/sessions?from=${weekStart}&to=${weekEnd}`,
+      )
+      setWeekSessions(data)
+    } catch (err) {
+      setWeekError(
+        err instanceof Error ? err.message : 'Failed to load sessions',
+      )
+    } finally {
+      setWeekLoading(false)
+    }
+  }, [weekAthleteId, weekDate, apiFetch])
+
+  const openSessionModal = async (session: CoachWeekSession) => {
+    setSelectedSession(session)
+    setLogError(null)
+    setLogData(null)
+
+    if (!session.hasLog) {
+      return
+    }
+
+    setLogLoading(true)
+    try {
+      const data = await apiFetch<WorkoutLog>(
+        `/api/coach/athletes/${weekAthleteId}/sessions/${session.id}/log`,
+      )
+      setLogData(data)
+    } catch (err) {
+      setLogError(err instanceof Error ? err.message : 'Failed to load log')
+    } finally {
+      setLogLoading(false)
+    }
+  }
+
+  const closeSessionModal = useCallback(() => {
+    setSelectedSession(null)
+    setLogData(null)
+    setLogError(null)
+    setLogLoading(false)
+  }, [])
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeSessionModal()
+      }
+    }
+    if (selectedSession) {
+      window.addEventListener('keydown', handleKey)
+    }
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [selectedSession, closeSessionModal])
+
+  // Auto-load summary when both athlete and week are selected
+  useEffect(() => {
+    if (
+      activeTab === 'summary' &&
+      summaryAthleteId &&
+      summaryWeekDate &&
+      !summaryLoading &&
+      !summaryData
+    ) {
+      const weekStart = normalizeWeekStart(summaryWeekDate)
+      if (weekStart) {
+        loadWeekSummary()
+      }
+    }
+  }, [activeTab, summaryAthleteId, summaryWeekDate, summaryLoading, summaryData, loadWeekSummary])
+
+  // Auto-load week sessions when both athlete and week are selected
+  useEffect(() => {
+    if (
+      activeTab === 'week' &&
+      weekAthleteId &&
+      weekDate &&
+      !weekLoading &&
+      weekSessions.length === 0
+    ) {
+      const weekStart = normalizeWeekStart(weekDate)
+      if (weekStart) {
+        loadWeekSessions()
+      }
+    }
+  }, [activeTab, weekAthleteId, weekDate, weekLoading, weekSessions.length, loadWeekSessions])
+
   if (!isAuthenticated) {
     return (
       <div className="app">
@@ -662,6 +846,18 @@ function App() {
         >
           Plans
         </button>
+        <button
+          className={`tab ${activeTab === 'summary' ? 'active' : ''}`}
+          onClick={() => setActiveTab('summary')}
+        >
+          Summary
+        </button>
+        <button
+          className={`tab ${activeTab === 'week' ? 'active' : ''}`}
+          onClick={() => setActiveTab('week')}
+        >
+          Week
+        </button>
       </div>
 
       <div className="coach-content">
@@ -675,7 +871,11 @@ function App() {
                   ? fetchAthletes
                   : activeTab === 'exercises'
                     ? fetchExercises
-                    : fetchAthletes
+                    : activeTab === 'summary'
+                      ? fetchAthletes
+                      : activeTab === 'week'
+                        ? fetchAthletes
+                        : fetchAthletes
               }
             >
               Retry
@@ -1097,6 +1297,250 @@ function App() {
             )}
           </div>
         )}
+
+        {activeTab === 'summary' && (
+          <div className="card">
+            <div className="card-header">
+              <h2>Weekly Summary</h2>
+            </div>
+            <div className="summary-controls">
+              <label className="field">
+                <span>Athlete</span>
+                <select
+                  value={summaryAthleteId}
+                  onChange={(event) => setSummaryAthleteId(event.target.value)}
+                >
+                  <option value="">Select athlete</option>
+                  {athletes.map((athlete) => (
+                    <option key={athlete.id} value={athlete.id}>
+                      {athlete.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Week of</span>
+                <input
+                  type="date"
+                  value={summaryWeekDate}
+                  onChange={(event) => setSummaryWeekDate(event.target.value)}
+                />
+              </label>
+              <button
+                className="btn"
+                onClick={() => loadWeekSummary()}
+                disabled={!summaryAthleteId || !summaryWeekDate || summaryLoading}
+              >
+                {summaryLoading ? 'Loading...' : 'Load Summary'}
+              </button>
+            </div>
+            {summaryError && <p className="inline-error">{summaryError}</p>}
+            {summaryData && (
+              <div className="summary-grid">
+                <div className="summary-card">
+                  <p className="summary-label">Planned</p>
+                  <p className="summary-value">{summaryData.plannedSessionsCount}</p>
+                </div>
+                <div className="summary-card">
+                  <p className="summary-label">Completed</p>
+                  <p className="summary-value">{summaryData.completedSessionsCount}</p>
+                </div>
+                <div className="summary-card">
+                  <p className="summary-label">Missed</p>
+                  <p className="summary-value">{summaryData.missedSessionsCount}</p>
+                </div>
+                <div className="summary-card">
+                  <p className="summary-label">Adherence</p>
+                  <p className="summary-value">
+                    {(summaryData.adherenceRate * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="summary-card">
+                  <p className="summary-label">Strength</p>
+                  <p className="summary-value">{summaryData.strengthCount}</p>
+                </div>
+                <div className="summary-card">
+                  <p className="summary-label">Endurance</p>
+                  <p className="summary-value">{summaryData.enduranceCount}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'week' && (
+          <div className="card">
+            <div className="card-header">
+              <h2>Week View</h2>
+            </div>
+            <div className="summary-controls">
+              <label className="field">
+                <span>Athlete</span>
+                <select
+                  value={weekAthleteId}
+                  onChange={(event) => setWeekAthleteId(event.target.value)}
+                >
+                  <option value="">Select athlete</option>
+                  {athletes.map((athlete) => (
+                    <option key={athlete.id} value={athlete.id}>
+                      {athlete.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Week of</span>
+                <input
+                  type="date"
+                  value={weekDate}
+                  onChange={(event) => setWeekDate(event.target.value)}
+                />
+              </label>
+              <button
+                className="btn"
+                onClick={() => loadWeekSessions()}
+                disabled={!weekAthleteId || !weekDate || weekLoading}
+              >
+                {weekLoading ? 'Loading...' : 'Load Week'}
+              </button>
+            </div>
+            {weekError && <p className="inline-error">{weekError}</p>}
+            {weekLoading && <p className="muted">Loading sessions...</p>}
+            {!weekLoading && !weekError && weekSessions.length === 0 && (
+              <p className="muted">No sessions in this range.</p>
+            )}
+            {weekSessions.length > 0 && (
+              <div className="week-list">
+                {groupSessionsByDay(weekSessions).map((group) => (
+                  <div key={group.date} className="week-day">
+                    <h3 className="week-day-title">{formatDayLabel(group.date)}</h3>
+                    <div className="week-day-list">
+                      {group.sessions.map((session) => (
+                        <button
+                          key={session.id}
+                          type="button"
+                          className="week-session"
+                          onClick={() => openSessionModal(session)}
+                        >
+                          <div>
+                            <div className="list-item-title">{session.title}</div>
+                            <div className="list-item-meta">
+                              <span
+                                className={`chip ${
+                                  session.type === 'STRENGTH'
+                                    ? 'chip-strength'
+                                    : 'chip-endurance'
+                                }`}
+                              >
+                                {session.type}
+                              </span>
+                              {session.hasLog && <span className="badge">Log</span>}
+                            </div>
+                          </div>
+                          <span className={`badge status-${session.status.toLowerCase()}`}>
+                            {session.status}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedSession && (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <div>
+                  <p className="modal-title">Session Details</p>
+                  <h3>{selectedSession.title}</h3>
+                  <p className="modal-subtitle">
+                    {selectedSession.type} • {formatDayLabel(selectedSession.date)}
+                  </p>
+                </div>
+                <button className="btn ghost" onClick={closeSessionModal}>
+                  ✕
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="modal-row">
+                  <span className="badge status-base">{selectedSession.status}</span>
+                  {selectedSession.hasLog && <span className="badge">Log</span>}
+                </div>
+                {logLoading && <p className="muted">Loading log...</p>}
+                {!logLoading && logError && (
+                  <p className="inline-error">{logError}</p>
+                )}
+                {!logLoading && !logError && !selectedSession.hasLog && (
+                  <p className="muted">No log for this session.</p>
+                )}
+                 {!logLoading && !logError && logData && (
+                   <div className="log-details">
+                     {selectedSession.type === 'STRENGTH' && (
+                       <>
+                         <div className="log-row">
+                           <span className="log-label">Completed</span>
+                           <span className="log-value">
+                             {String(getLogField(logData.summary, 'completed') ?? '—')}
+                           </span>
+                         </div>
+                         <div className="log-row">
+                           <span className="log-label">RPE</span>
+                           <span className="log-value">
+                             {String(getLogField(logData.summary, 'rpe') ?? '—')}
+                           </span>
+                         </div>
+                       </>
+                     )}
+                     {selectedSession.type === 'ENDURANCE' && (
+                       <>
+                         <div className="log-row">
+                           <span className="log-label">Duration</span>
+                           <span className="log-value">
+                             {formatDuration(getLogField(logData.summary, 'durationSeconds'))}
+                           </span>
+                         </div>
+                         <div className="log-row">
+                           <span className="log-label">Distance</span>
+                           <span className="log-value">
+                             {formatDistance(getLogField(logData.summary, 'distanceMeters'))}
+                           </span>
+                         </div>
+                         <div className="log-row">
+                           <span className="log-label">Avg HR</span>
+                           <span className="log-value">
+                             {formatHeartRate(getLogField(logData.summary, 'avgHr'))}
+                           </span>
+                         </div>
+                         <div className="log-row">
+                           <span className="log-label">RPE</span>
+                           <span className="log-value">
+                             {String(getLogField(logData.summary, 'rpe') ?? '—')}
+                           </span>
+                         </div>
+                       </>
+                     )}
+                     <div className="log-row">
+                       <span className="log-label">Notes</span>
+                       <span className="log-value">
+                         {String(getLogField(logData.summary, 'notes') ?? '—')}
+                       </span>
+                     </div>
+                     <div className="log-row">
+                       <span className="log-label">Logged</span>
+                       <span className="log-value">
+                         {new Date(logData.createdAt).toLocaleString()}
+                       </span>
+                     </div>
+                   </div>
+                 )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1121,6 +1565,74 @@ function normalizeWeekStart(dateString: string) {
   const monday = new Date(date)
   monday.setDate(date.getDate() + offset)
   return monday.toISOString().split('T')[0]
+}
+
+function addDays(dateString: string, days: number) {
+  const date = new Date(`${dateString}T00:00:00`)
+  date.setDate(date.getDate() + days)
+  return date.toISOString().split('T')[0]
+}
+
+function groupSessionsByDay(sessions: CoachWeekSession[]) {
+  const sorted = [...sessions].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  )
+  const groups: Array<{ date: string; sessions: CoachWeekSession[] }> = []
+  for (const session of sorted) {
+    const day = session.date.split('T')[0]
+    const last = groups[groups.length - 1]
+    if (!last || last.date !== day) {
+      groups.push({ date: day, sessions: [session] })
+    } else {
+      last.sessions.push(session)
+    }
+  }
+  return groups
+}
+
+function formatDayLabel(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00`)
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function getLogField(summary: Record<string, unknown>, key: string) {
+  if (summary && typeof summary === 'object' && key in summary) {
+    return summary[key]
+  }
+  return undefined
+}
+
+function formatDuration(seconds: unknown): string {
+  if (typeof seconds !== 'number' || seconds <= 0) {
+    return '—'
+  }
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+}
+
+function formatDistance(meters: unknown): string {
+  if (typeof meters !== 'number' || meters <= 0) {
+    return '—'
+  }
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(2)} km`
+  }
+  return `${meters} m`
+}
+
+function formatHeartRate(bpm: unknown): string {
+  if (typeof bpm !== 'number' || bpm <= 0) {
+    return '—'
+  }
+  return `${Math.round(bpm)} bpm`
 }
 
 function isDateInWeek(dateString: string, weekStart: string) {

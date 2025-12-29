@@ -19,7 +19,7 @@ export class CoachService {
     // Ensure coach profile exists
     const coachProfile = await this.ensureCoachProfile(coachUserId);
 
-    // Check if there's already a pending invitation for this email
+    // Revoke any existing pending invitation before creating a new one
     const existingPendingInvitation = await this.prisma.invitation.findFirst({
       where: {
         coachProfileId: coachProfile.id,
@@ -32,9 +32,10 @@ export class CoachService {
     });
 
     if (existingPendingInvitation) {
-      throw new ConflictException(
-        'An active invitation for this email already exists',
-      );
+      await this.prisma.invitation.update({
+        where: { id: existingPendingInvitation.id },
+        data: { status: InvitationStatus.REVOKED },
+      });
     }
 
     // Check if athlete is already in roster

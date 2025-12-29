@@ -460,3 +460,173 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* Summary */
+.summary-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+  align-items: end;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--background-light);
+}
+
+.summary-label {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.summary-value {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Week View */
+.week-list {
+  display: grid;
+  gap: 20px;
+}
+
+.week-day-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.week-day-list {
+  display: grid;
+  gap: 10px;
+}
+
+.week-session {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background-light);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.week-session:hover {
+  border-color: var(--strava-orange);
+}
+
+.week-session:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(252, 76, 2, 0.15);
+}
+
+.badge.status-base {
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  z-index: 10;
+}
+
+.modal {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 20px;
+  width: min(480px, 100%);
+  box-shadow: var(--shadow-hover);
+  display: grid;
+  gap: 16px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.modal-subtitle {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
+}
+
+.modal-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.log-details {
+  display: grid;
+  gap: 10px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.log-label {
+  color: var(--text-secondary);
+}
+
+.log-value {
+  color: var(--text-primary);
+}
+
+.badge.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.status-missed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge.status-modified {
+  background: #fef3c7;
+  color: #92400e;
+}
