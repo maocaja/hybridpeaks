@@ -5,6 +5,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { CoachModule } from './coach/coach.module';
+import { AthleteModule } from './athlete/athlete.module';
 import appConfig from './config/app.config';
 import { validationSchema } from './config/validation.schema';
 
@@ -26,6 +28,8 @@ import { validationSchema } from './config/validation.schema';
     ]),
     PrismaModule,
     AuthModule,
+    CoachModule,
+    AthleteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

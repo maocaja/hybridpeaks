@@ -12,12 +12,14 @@ datasource db {
 
 // User model for authentication
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String          @id @default(uuid())
+  email        String          @unique
   passwordHash String
   role         UserRole
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  coachProfile CoachProfile?
+  athleteProfile AthleteProfile?
 
   @@map("users")
 }
@@ -25,4 +27,82 @@ model User {
 enum UserRole {
   COACH
   ATHLETE
+}
+
+// Coach-specific profile
+model CoachProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  athletes       CoachAthlete[]
+  sentInvitations Invitation[]
+  auditLogs      AuditLog[]
+
+  @@map("coach_profiles")
+}
+
+// Athlete-specific profile
+model AthleteProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  coaches   CoachAthlete[]
+
+  @@map("athlete_profiles")
+}
+
+// Coach-Athlete relationship (roster)
+model CoachAthlete {
+  id              String         @id @default(uuid())
+  coachProfileId  String
+  athleteProfileId String
+  coachProfile    CoachProfile   @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  athleteProfile  AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  linkedAt        DateTime       @default(now())
+
+  @@unique([coachProfileId, athleteProfileId])
+  @@map("coach_athletes")
+}
+
+// Invitation model
+model Invitation {
+  id            String           @id @default(uuid())
+  coachProfileId String
+  coachProfile  CoachProfile     @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  invitedEmail  String
+  tokenHash     String           @unique
+  status        InvitationStatus @default(PENDING)
+  expiresAt     DateTime
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([coachProfileId, invitedEmail, status])
+  @@map("invitations")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// Audit log for tracking invitation events
+model AuditLog {
+  id              String       @id @default(uuid())
+  coachProfileId  String
+  coachProfile    CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  athleteUserId   String?
+  invitationId    String?
+  action          String
+  timestamp       DateTime     @default(now())
+  metadata        Json?
+
+  @@map("audit_logs")
 }
