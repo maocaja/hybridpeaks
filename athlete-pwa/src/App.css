@@ -31,6 +31,34 @@
   background: var(--background);
 }
 
+.invite-card {
+  margin-bottom: 24px;
+}
+
+.invite-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.invite-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.invite-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.invite-success {
+  color: var(--success);
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
 /* Login Screen */
 .login-container {
   max-width: 420px;

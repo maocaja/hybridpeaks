@@ -25,6 +25,10 @@ function App() {
     durationMinutes: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [inviteToken, setInviteToken] = useState('')
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   useEffect(() => {
     if (window.location.pathname === '/') {
@@ -402,6 +406,31 @@ function App() {
     }
   }
 
+  const acceptInvitation = async () => {
+    if (!inviteToken.trim()) {
+      setInviteError('Invite token is required.')
+      return
+    }
+
+    setInviteLoading(true)
+    setInviteError(null)
+    setInviteSuccess(null)
+
+    try {
+      await apiFetch('/api/athlete/invitations/accept', {
+        method: 'POST',
+        body: JSON.stringify({ token: inviteToken.trim() }),
+      })
+      setInviteSuccess('Invitation accepted.')
+      setInviteToken('')
+      window.history.replaceState({}, '', '/today')
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Invite failed')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
   // Show login screen if not authenticated (after all hooks)
   if (!isAuthenticated) {
     return (
@@ -461,6 +490,32 @@ function App() {
 
   return (
     <div className="app">
+      <section className="card invite-card">
+        <div className="invite-header">
+          <h2 className="invite-title">Accept Invitation</h2>
+          <p className="invite-subtitle">Paste the token from your coach.</p>
+        </div>
+        {inviteSuccess && <p className="invite-success">{inviteSuccess}</p>}
+        {inviteError && <div className="card error">{inviteError}</div>}
+        <label className="field">
+          <span>Invite Token</span>
+          <input
+            type="text"
+            value={inviteToken}
+            onChange={(event) => setInviteToken(event.target.value)}
+            placeholder="Token"
+            disabled={inviteLoading}
+          />
+        </label>
+        <button
+          className="btn primary"
+          onClick={acceptInvitation}
+          disabled={inviteLoading}
+        >
+          {inviteLoading ? 'Accepting...' : 'Accept'}
+        </button>
+      </section>
+
       <header className="today-header">
         <div>
           <p className="today-label">Today</p>

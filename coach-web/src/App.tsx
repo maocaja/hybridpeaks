@@ -77,6 +77,10 @@ function App() {
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [planAthleteId, setPlanAthleteId] = useState('')
   const [planWeekDate, setPlanWeekDate] = useState('')
   const [planSessions, setPlanSessions] = useState<PlanSessionDraft[]>([])
@@ -122,6 +126,77 @@ function App() {
       setLoading(false)
     }
   }, [apiFetch])
+
+  const handleInviteAthlete = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setInviteLoading(true)
+    setInviteError(null)
+    setInviteToken(null)
+
+    if (!inviteEmail.trim()) {
+      setInviteError('Email is required')
+      setInviteLoading(false)
+      return
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(inviteEmail.trim())) {
+      setInviteError('Please enter a valid email address')
+      setInviteLoading(false)
+      return
+    }
+
+    try {
+      const response = await apiFetch<{ invitationId: string; token: string }>(
+        '/api/coach/athletes/invite',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email: inviteEmail.trim() }),
+        },
+      )
+      setInviteToken(response.token)
+      setInviteEmail('')
+      // Refresh athletes list
+      await fetchAthletes()
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Failed to send invitation')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const copyTokenToClipboard = async () => {
+    if (inviteToken) {
+      try {
+        await navigator.clipboard.writeText(inviteToken)
+        // Optionally show a brief confirmation
+        const originalToken = inviteToken
+        setInviteToken(null)
+        setTimeout(() => {
+          setInviteToken(originalToken)
+        }, 100)
+      } catch (err) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = inviteToken
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.select()
+        try {
+          document.execCommand('copy')
+          setInviteToken(null)
+          setTimeout(() => {
+            setInviteToken(inviteToken)
+          }, 100)
+        } catch (fallbackErr) {
+          setInviteError('Failed to copy token. Please copy manually.')
+        }
+        document.body.removeChild(textArea)
+      }
+    }
+  }
 
   const fetchExercises = useCallback(async () => {
     try {
@@ -615,6 +690,60 @@ function App() {
               <button className="btn ghost" onClick={fetchAthletes} disabled={loading}>
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
+            </div>
+
+            {/* Invite Athlete Form */}
+            <div className="invite-form">
+              <form onSubmit={handleInviteAthlete}>
+                <div className="invite-form-row">
+                  <label className="field" style={{ flex: 1 }}>
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => {
+                        setInviteEmail(e.target.value)
+                        setInviteError(null)
+                      }}
+                      placeholder="athlete@example.com"
+                      disabled={inviteLoading}
+                    />
+                    {inviteError && <span className="field-error">{inviteError}</span>}
+                  </label>
+                  <button
+                    type="submit"
+                    className="btn primary"
+                    disabled={inviteLoading || !inviteEmail.trim()}
+                    style={{ alignSelf: 'flex-end' }}
+                  >
+                    {inviteLoading ? 'Sending...' : 'Send Invite'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Success Banner with Token */}
+              {inviteToken && (
+                <div className="card success" style={{ marginTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: '0 0 8px', fontWeight: 600 }}>Invitation created!</p>
+                      <p style={{ margin: '0 0 8px', fontSize: '0.875rem' }}>
+                        Copy token: <code style={{ background: 'rgba(255,255,255,0.5)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.85em' }}>{inviteToken}</code>
+                      </p>
+                      <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>
+                        Share this token with the athlete to accept the invitation.
+                      </p>
+                    </div>
+                    <button
+                      className="btn ghost"
+                      onClick={copyTokenToClipboard}
+                      style={{ flexShrink: 0 }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             {loading && athletes.length === 0 ? (
               <p className="muted">Loading athletes...</p>
