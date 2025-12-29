@@ -576,6 +576,30 @@ export type CreatePlanDto = z.infer<typeof createPlanSchema>;
 
 ---
 
+### Future Design Decisions (Calendar + Metrics)
+
+**Calendar Model**:
+- **Planning**: Week-based (coaches create plans for Monday-Sunday weeks)
+- **Execution**: Day-based (athletes interact with individual sessions on specific dates)
+- **Athlete Interaction**: Today-focused (default view shows today's sessions; weekly context available but secondary)
+
+**Proposed UI Patterns**:
+- **Coach Interface**: Week grid view (7-day calendar) for planning multiple sessions across the week; drag-and-drop session placement
+- **Athlete Interface**: Today view (primary) with simple week overview (secondary navigation); week overview shows completion status (planned vs completed) without detailed prescription
+
+**Metrics Naming** (Avoid TrainingPeaks-Specific Terms):
+- **Hybrid Load**: Combined training stress from strength and endurance (normalized units)
+- **Strength Volume**: Total load (sets × reps × weight) or tonnage
+- **Endurance Time**: Total duration in minutes/hours across all endurance sessions
+- **Modality Balance**: Ratio of strength to endurance sessions (or time/volume split)
+
+**Data Model Separation**:
+- Keep `TrainingSession` (planned) separate from `WorkoutLog` (actual execution)
+- Planned sessions represent coach's prescription; workout logs represent athlete's completed work
+- This separation enables adherence calculations (planned vs actual) and preserves historical prescriptions even if plans are updated
+
+---
+
 ### Migrations Strategy
 
 **Tool**: **Prisma Migrate**
@@ -2113,4 +2137,3 @@ This technical implementation plan defines a **pragmatic, MVP-appropriate archit
 **Constitution Compliance**: ✅ **APPROVED**
 
 This plan adheres to all 20 principles of the HybridPeaks Constitution v1.0.0 and respects the defined non-goals and scope guardrails.
-

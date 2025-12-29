@@ -2,11 +2,14 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   UseGuards,
   Request,
   HttpCode,
   HttpStatus,
+  Param,
+  Query,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -15,6 +18,9 @@ import { UserRole, User } from '@prisma/client';
 import { AthleteService } from './athlete.service';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { BenchmarksService } from '../benchmarks/benchmarks.service';
+import { UpdateSessionStatusDto } from './dto/update-session-status.dto';
+import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
+import { QueryWeeklyPlanDto } from '../weekly-plans/dto/query-weekly-plan.dto';
 
 interface AuthenticatedRequest extends Request {
   user: User;
@@ -42,5 +48,51 @@ export class AthleteController {
   @HttpCode(HttpStatus.OK)
   async listOwnBenchmarks(@Request() req: AuthenticatedRequest) {
     return this.benchmarksService.listOwnBenchmarks(req.user.id);
+  }
+
+  @Patch('sessions/:sessionId/status')
+  @HttpCode(HttpStatus.OK)
+  async updateSessionStatus(
+    @Request() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+    @Body() updateDto: UpdateSessionStatusDto,
+  ) {
+    return this.athleteService.updateSessionStatus(
+      req.user.id,
+      sessionId,
+      updateDto,
+    );
+  }
+
+  @Post('sessions/:sessionId/log')
+  @HttpCode(HttpStatus.OK)
+  async upsertWorkoutLog(
+    @Request() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+    @Body() createDto: CreateWorkoutLogDto,
+  ) {
+    return this.athleteService.upsertWorkoutLog(
+      req.user.id,
+      sessionId,
+      createDto,
+    );
+  }
+
+  @Get('sessions/:sessionId/log')
+  @HttpCode(HttpStatus.OK)
+  async getWorkoutLog(
+    @Request() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.athleteService.getWorkoutLog(req.user.id, sessionId);
+  }
+
+  @Get('week-summary')
+  @HttpCode(HttpStatus.OK)
+  async getWeekSummary(
+    @Request() req: AuthenticatedRequest,
+    @Query() query: QueryWeeklyPlanDto,
+  ) {
+    return this.athleteService.getWeekSummary(req.user.id, query.weekStart);
   }
 }

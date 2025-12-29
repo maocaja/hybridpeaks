@@ -6,8 +6,22 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { InvitationStatus } from '@prisma/client';
+import {
+  InvitationStatus,
+  SessionStatus,
+  SessionType,
+  Prisma,
+} from '@prisma/client';
 import { createHash } from 'crypto';
+import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
+import { UpdateSessionStatusDto } from './dto/update-session-status.dto';
+import {
+  EnduranceSummaryDto,
+  StrengthSummaryDto,
+} from './dto/workout-log-summary.dto';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import { calculateWeekSummary } from '../metrics/week-summary';
 
 @Injectable()
 export class AthleteService {
@@ -122,5 +136,139 @@ export class AthleteService {
       message: 'Successfully accepted invitation',
       coachEmail: invitation.coachProfile.user.email,
     };
+  }
+
+  private async getSessionForAthlete(sessionId: string, athleteUserId: string) {
+    const session = await this.prisma.trainingSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        weeklyPlan: {
+          select: { athleteUserId: true },
+        },
+      },
+    });
+
+    if (!session || session.weeklyPlan.athleteUserId !== athleteUserId) {
+      throw new NotFoundException('Session not found');
+    }
+
+    return session;
+  }
+
+  private validateSummary(type: SessionType, summary: unknown) {
+    const dto =
+      type === SessionType.STRENGTH
+        ? plainToInstance(StrengthSummaryDto, summary)
+        : plainToInstance(EnduranceSummaryDto, summary);
+
+    const errors = validateSync(dto);
+    if (errors.length > 0) {
+      throw new BadRequestException(
+        `Invalid ${type.toLowerCase()} summary: ${errors
+          .map((e) => Object.values(e.constraints || {}).join(', '))
+          .join('; ')}`,
+      );
+    }
+  }
+
+  async updateSessionStatus(
+    athleteUserId: string,
+    sessionId: string,
+    dto: UpdateSessionStatusDto,
+  ) {
+    if (dto.status === SessionStatus.PLANNED) {
+      throw new BadRequestException(
+        'Status must be COMPLETED, MISSED, or MODIFIED',
+      );
+    }
+
+    await this.getSessionForAthlete(sessionId, athleteUserId);
+
+    const completedAt =
+      dto.status === SessionStatus.COMPLETED
+        ? dto.completedAt
+          ? new Date(dto.completedAt)
+          : new Date()
+        : null;
+
+    return this.prisma.trainingSession.update({
+      where: { id: sessionId },
+      data: {
+        status: dto.status,
+        completedAt,
+      },
+    });
+  }
+
+  async upsertWorkoutLog(
+    athleteUserId: string,
+    sessionId: string,
+    dto: CreateWorkoutLogDto,
+  ) {
+    const session = await this.getSessionForAthlete(sessionId, athleteUserId);
+
+    this.validateSummary(session.type, dto.summary);
+
+    const existingLog = await this.prisma.workoutLog.findUnique({
+      where: { sessionId },
+    });
+
+    if (existingLog && existingLog.athleteUserId !== athleteUserId) {
+      throw new NotFoundException('Session not found');
+    }
+
+    return this.prisma.workoutLog.upsert({
+      where: { sessionId },
+      update: {
+        summary: dto.summary as Prisma.InputJsonValue,
+      },
+      create: {
+        sessionId,
+        athleteUserId,
+        type: session.type,
+        summary: dto.summary as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async getWorkoutLog(athleteUserId: string, sessionId: string) {
+    await this.getSessionForAthlete(sessionId, athleteUserId);
+
+    const log = await this.prisma.workoutLog.findUnique({
+      where: { sessionId },
+    });
+
+    if (!log) {
+      throw new NotFoundException('Workout log not found');
+    }
+
+    return log;
+  }
+
+  async getWeekSummary(athleteUserId: string, weekStart: string) {
+    const startDate = new Date(`${weekStart}T00:00:00.000Z`);
+
+    if (Number.isNaN(startDate.getTime())) {
+      throw new BadRequestException('Invalid weekStart date');
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setUTCDate(startDate.getUTCDate() + 6);
+
+    const sessions = await this.prisma.trainingSession.findMany({
+      where: {
+        weeklyPlan: { athleteUserId },
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        status: true,
+        type: true,
+      },
+    });
+
+    return calculateWeekSummary(sessions);
   }
 }

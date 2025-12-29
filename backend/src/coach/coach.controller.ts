@@ -8,6 +8,7 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,6 +19,8 @@ import { CoachService } from './coach.service';
 import { InviteAthleteDto } from './dto/invite-athlete.dto';
 import { BenchmarksService } from '../benchmarks/benchmarks.service';
 import { CreateBenchmarkDto } from '../benchmarks/dto/create-benchmark.dto';
+import { QuerySessionsDto } from './dto/query-sessions.dto';
+import { QueryWeeklyPlanDto } from '../weekly-plans/dto/query-weekly-plan.dto';
 
 interface AuthenticatedRequest extends Request {
   user: User;
@@ -71,6 +74,44 @@ export class CoachController {
     return this.benchmarksService.listBenchmarksForAthlete(
       req.user.id,
       athleteId,
+    );
+  }
+
+  @Get(':athleteId/sessions')
+  @HttpCode(HttpStatus.OK)
+  async listAthleteSessions(
+    @Request() req: AuthenticatedRequest,
+    @Param('athleteId') athleteId: string,
+    @Query() query: QuerySessionsDto,
+  ) {
+    return this.coachService.getAthleteSessions(req.user.id, athleteId, query);
+  }
+
+  @Get(':athleteId/sessions/:sessionId/log')
+  @HttpCode(HttpStatus.OK)
+  async getAthleteSessionLog(
+    @Request() req: AuthenticatedRequest,
+    @Param('athleteId') athleteId: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.coachService.getAthleteSessionLog(
+      req.user.id,
+      athleteId,
+      sessionId,
+    );
+  }
+
+  @Get(':athleteId/week-summary')
+  @HttpCode(HttpStatus.OK)
+  async getAthleteWeekSummary(
+    @Request() req: AuthenticatedRequest,
+    @Param('athleteId') athleteId: string,
+    @Query() query: QueryWeeklyPlanDto,
+  ) {
+    return this.coachService.getAthleteWeekSummary(
+      req.user.id,
+      athleteId,
+      query.weekStart,
     );
   }
 }

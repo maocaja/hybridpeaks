@@ -23,6 +23,7 @@ model User {
   benchmarks         AthleteBenchmark[]
   coachWeeklyPlans   WeeklyPlan[]        @relation("CoachWeeklyPlans")
   athleteWeeklyPlans WeeklyPlan[]        @relation("AthleteWeeklyPlans")
+  workoutLogs        WorkoutLog[]
 
   @@map("users")
 }
@@ -200,10 +201,27 @@ model TrainingSession {
   title         String
   prescription  Json          // Type-specific JSON schema
   status        SessionStatus @default(PLANNED)
+  completedAt   DateTime?
+  workoutLog    WorkoutLog?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@index([weeklyPlanId])
   @@index([date])
   @@map("training_sessions")
+}
+
+model WorkoutLog {
+  id            String        @id @default(uuid())
+  sessionId     String        @unique
+  session       TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  athleteUserId String
+  athleteUser   User          @relation(fields: [athleteUserId], references: [id], onDelete: Cascade)
+  type          SessionType
+  summary       Json
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([athleteUserId])
+  @@map("workout_logs")
 }
