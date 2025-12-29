@@ -12,14 +12,15 @@ datasource db {
 
 // User model for authentication
 model User {
-  id           String          @id @default(uuid())
-  email        String          @unique
+  id           String              @id @default(uuid())
+  email        String              @unique
   passwordHash String
   role         UserRole
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   coachProfile CoachProfile?
   athleteProfile AthleteProfile?
+  benchmarks   AthleteBenchmark[]
 
   @@map("users")
 }
@@ -105,4 +106,55 @@ model AuditLog {
   metadata        Json?
 
   @@map("audit_logs")
+}
+
+// Exercise catalog
+model Exercise {
+  id             String        @id @default(uuid())
+  name           String
+  type           ExerciseType
+  modality       Modality?
+  description    String?
+  videoUrl       String?
+  primaryMuscles Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("exercises")
+}
+
+enum ExerciseType {
+  STRENGTH
+  ENDURANCE
+}
+
+enum Modality {
+  GYM
+  BIKE
+  RUN
+  SWIM
+}
+
+// Athlete benchmark metrics
+model AthleteBenchmark {
+  id             String        @id @default(uuid())
+  athleteUserId  String
+  athleteUser    User          @relation(fields: [athleteUserId], references: [id], onDelete: Cascade)
+  key            BenchmarkKey
+  context        String?
+  value          Float
+  unit           String
+  measuredAt     DateTime
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([athleteUserId, key])
+  @@map("athlete_benchmarks")
+}
+
+enum BenchmarkKey {
+  FTP
+  HR_MAX
+  HR_REST
+  ONE_RM
 }

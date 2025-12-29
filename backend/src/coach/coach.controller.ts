@@ -5,6 +5,7 @@ import {
   Body,
   UseGuards,
   Request,
+  Param,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole, User } from '@prisma/client';
 import { CoachService } from './coach.service';
 import { InviteAthleteDto } from './dto/invite-athlete.dto';
+import { BenchmarksService } from '../benchmarks/benchmarks.service';
+import { CreateBenchmarkDto } from '../benchmarks/dto/create-benchmark.dto';
 
 interface AuthenticatedRequest extends Request {
   user: User;
@@ -24,7 +27,10 @@ interface AuthenticatedRequest extends Request {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.COACH)
 export class CoachController {
-  constructor(private coachService: CoachService) {}
+  constructor(
+    private coachService: CoachService,
+    private benchmarksService: BenchmarksService,
+  ) {}
 
   @Post('invite')
   @HttpCode(HttpStatus.CREATED)
@@ -40,5 +46,31 @@ export class CoachController {
   @HttpCode(HttpStatus.OK)
   async listAthletes(@Request() req: AuthenticatedRequest) {
     return this.coachService.listAthletes(req.user.id);
+  }
+
+  @Post(':athleteId/benchmarks')
+  @HttpCode(HttpStatus.CREATED)
+  async createBenchmark(
+    @Request() req: AuthenticatedRequest,
+    @Param('athleteId') athleteId: string,
+    @Body() createDto: CreateBenchmarkDto,
+  ) {
+    return this.benchmarksService.createBenchmarkForAthlete(
+      req.user.id,
+      athleteId,
+      createDto,
+    );
+  }
+
+  @Get(':athleteId/benchmarks')
+  @HttpCode(HttpStatus.OK)
+  async listBenchmarks(
+    @Request() req: AuthenticatedRequest,
+    @Param('athleteId') athleteId: string,
+  ) {
+    return this.benchmarksService.listBenchmarksForAthlete(
+      req.user.id,
+      athleteId,
+    );
   }
 }
