@@ -9,6 +9,7 @@ import { CoachModule } from './coach/coach.module';
 import { AthleteModule } from './athlete/athlete.module';
 import { ExercisesModule } from './exercises/exercises.module';
 import { BenchmarksModule } from './benchmarks/benchmarks.module';
+import { WeeklyPlansModule } from './weekly-plans/weekly-plans.module';
 import appConfig from './config/app.config';
 import { validationSchema } from './config/validation.schema';
 
@@ -34,6 +35,7 @@ import { validationSchema } from './config/validation.schema';
     AthleteModule,
     ExercisesModule,
     BenchmarksModule,
+    WeeklyPlansModule,
   ],
   controllers: [AppController],
   providers: [AppService],

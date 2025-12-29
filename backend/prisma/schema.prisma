@@ -12,15 +12,17 @@ datasource db {
 
 // User model for authentication
 model User {
-  id           String              @id @default(uuid())
-  email        String              @unique
-  passwordHash String
-  role         UserRole
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  coachProfile CoachProfile?
-  athleteProfile AthleteProfile?
-  benchmarks   AthleteBenchmark[]
+  id                 String              @id @default(uuid())
+  email              String              @unique
+  passwordHash       String
+  role               UserRole
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  coachProfile       CoachProfile?
+  athleteProfile     AthleteProfile?
+  benchmarks         AthleteBenchmark[]
+  coachWeeklyPlans   WeeklyPlan[]        @relation("CoachWeeklyPlans")
+  athleteWeeklyPlans WeeklyPlan[]        @relation("AthleteWeeklyPlans")
 
   @@map("users")
 }
@@ -157,4 +159,51 @@ enum BenchmarkKey {
   HR_MAX
   HR_REST
   ONE_RM
+}
+
+enum SessionType {
+  STRENGTH
+  ENDURANCE
+}
+
+enum SessionStatus {
+  PLANNED
+  COMPLETED
+  MISSED
+  MODIFIED
+}
+
+model WeeklyPlan {
+  id             String           @id @default(uuid())
+  coachId        String
+  coach          User             @relation("CoachWeeklyPlans", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteUserId  String
+  athlete        User             @relation("AthleteWeeklyPlans", fields: [athleteUserId], references: [id], onDelete: Cascade)
+  weekStart      DateTime         @db.Date // Normalized to Monday (YYYY-MM-DD)
+  notes          String?
+  sessions       TrainingSession[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([athleteUserId, weekStart])
+  @@index([coachId])
+  @@index([athleteUserId, weekStart])
+  @@map("weekly_plans")
+}
+
+model TrainingSession {
+  id            String        @id @default(uuid())
+  weeklyPlanId  String
+  weeklyPlan    WeeklyPlan    @relation(fields: [weeklyPlanId], references: [id], onDelete: Cascade)
+  date          DateTime      @db.Date // Session date (YYYY-MM-DD)
+  type          SessionType
+  title         String
+  prescription  Json          // Type-specific JSON schema
+  status        SessionStatus @default(PLANNED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([weeklyPlanId])
+  @@index([date])
+  @@map("training_sessions")
 }
