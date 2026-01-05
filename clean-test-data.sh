@@ -30,3 +30,4 @@ echo "  DELETE FROM users WHERE email IN ('coach@test.com', 'athlete@test.com');
 echo ""
 echo "After cleaning, run ./setup-test-data.sh again."
 
+

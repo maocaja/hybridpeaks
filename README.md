@@ -163,8 +163,16 @@ Then edit each `.env` file with your local configuration.
 ## Architecture
 
 - **Backend**: NestJS TypeScript REST API with Prisma ORM (PostgreSQL)
+  - **Endurance Prescription Model**: Step-based schema with repeat blocks, primary targets (power/HR/pace), and cadence targets (bike-only). Supports legacy format normalization.
+  - **Integration System**: Pure endurance workout normalizer and exporter framework (Garmin stub included) for third-party platform integration.
 - **Coach Web**: React TypeScript for coaches to plan training
+  - Weekly plan builder with step-based endurance prescriptions
+  - Athlete roster management and invitation system
+  - Weekly adherence summary and session overview
 - **Athlete PWA**: React TypeScript PWA for athletes to execute and log training (mobile-first, offline-capable)
+  - Offline queue with IndexedDB for status updates and workout logs
+  - Automatic token refresh and session management
+  - Weekly session overview with optimistic UI
 
 ## Documentation
 
@@ -177,6 +185,13 @@ Then edit each `.env` file with your local configuration.
 ## Project Status
 
 **Current Milestone**: 0.1 - Core Infrastructure & Authentication (Week 1-2)
+
+**Recent Updates**:
+- ✅ Step-based endurance prescription model with legacy support
+- ✅ Endurance workout normalizer and exporter framework (Garmin stub)
+- ✅ Coach Web: Weekly plan builder, athlete management, adherence summary
+- ✅ Athlete PWA: Offline queue, token refresh, weekly overview
+- ✅ Comprehensive test coverage for endurance normalization
 
 See [tasks.md](./specs/001-hybridpeaks-mvp/tasks.md) for detailed implementation plan.
 

@@ -77,3 +77,4 @@ echo "  Password: password123"
 echo ""
 echo "Or run ./setup-test-data.sh to set up the full test environment."
 
+

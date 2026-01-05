@@ -351,6 +351,13 @@
   color: var(--text-secondary);
 }
 
+.field-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+  margin-top: -4px;
+}
+
 .field input {
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -459,6 +466,80 @@
 .plan-footer {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Endurance Builder */
+.endurance-builder {
+  display: grid;
+  gap: 16px;
+}
+
+.endurance-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.endurance-blocks {
+  display: grid;
+  gap: 16px;
+}
+
+.endurance-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
+  display: grid;
+  gap: 12px;
+}
+
+.endurance-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.endurance-step-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.endurance-note {
+  grid-column: 1 / -1;
+}
+
+.repeat-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.repeat-steps {
+  display: grid;
+  gap: 12px;
+}
+
+.endurance-step {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.endurance-step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /* Summary */

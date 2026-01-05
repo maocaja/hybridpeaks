@@ -21,6 +21,14 @@ type TargetLoadType = 'PERCENT_1RM' | 'RPE' | 'ABS'
 
 type Modality = 'GYM' | 'BIKE' | 'RUN' | 'SWIM'
 
+type EnduranceSport = 'BIKE' | 'RUN' | 'SWIM'
+
+type EnduranceStepType = 'WARMUP' | 'WORK' | 'RECOVERY' | 'COOLDOWN'
+
+type EnduranceDurationType = 'TIME' | 'DISTANCE'
+
+type EnduranceTargetType = 'POWER' | 'HEART_RATE' | 'PACE' | 'NONE'
+
 interface WeeklyPlanSession {
   id?: string
   date: string
@@ -64,6 +72,24 @@ interface WorkoutLog {
   createdAt: string
 }
 
+interface EnduranceStepDraft {
+  id: string
+  type: EnduranceStepType
+  durationType: EnduranceDurationType
+  durationValue: string
+  targetType: EnduranceTargetType
+  targetZone?: string
+  targetMin?: string
+  targetMax?: string
+  cadenceMin?: string
+  cadenceMax?: string
+  note?: string
+}
+
+type EnduranceBlockDraft =
+  | { id: string; kind: 'STEP'; step: EnduranceStepDraft }
+  | { id: string; kind: 'REPEAT'; repeat: string; steps: EnduranceStepDraft[] }
+
 interface PlanSessionDraft {
   clientId: string
   date: string
@@ -75,9 +101,10 @@ interface PlanSessionDraft {
   strengthReps?: string
   strengthTargetLoadType?: TargetLoadType
   strengthTargetValue?: string
-  enduranceModality?: Modality
-  enduranceDurationMinutes?: string
-  enduranceTarget?: string
+  enduranceSport?: EnduranceSport
+  enduranceBlocks?: EnduranceBlockDraft[]
+  enduranceObjective?: string
+  enduranceNotes?: string
 }
 
 interface SessionErrors {
@@ -88,9 +115,9 @@ interface SessionErrors {
   strengthReps?: string
   strengthTargetLoadType?: string
   strengthTargetValue?: string
-  enduranceModality?: string
-  enduranceDurationMinutes?: string
-  enduranceTarget?: string
+  enduranceSport?: string
+  enduranceBlocks?: string
+  enduranceBlockErrors?: Record<string, string>
 }
 
 function App() {
@@ -347,6 +374,9 @@ function App() {
         type,
         title: '',
         strengthTargetLoadType: type === 'STRENGTH' ? 'PERCENT_1RM' : undefined,
+        enduranceSport: type === 'ENDURANCE' ? 'RUN' : undefined,
+        enduranceBlocks:
+          type === 'ENDURANCE' ? [createEnduranceStepBlock()] : undefined,
       },
     ])
   }
@@ -365,6 +395,144 @@ function App() {
       prev.map((session) =>
         session.clientId === clientId ? { ...session, ...updates } : session,
       ),
+    )
+  }
+
+  const updateEnduranceBlocks = useCallback(
+    (
+      clientId: string,
+      updater: (blocks: EnduranceBlockDraft[]) => EnduranceBlockDraft[],
+    ) => {
+      setPlanSessions((prev) =>
+        prev.map((session) => {
+          if (session.clientId !== clientId || session.type !== 'ENDURANCE') {
+            return session
+          }
+          const nextBlocks = updater(session.enduranceBlocks ?? [])
+          return { ...session, enduranceBlocks: nextBlocks }
+        }),
+      )
+    },
+    [],
+  )
+
+  const addEnduranceStep = (clientId: string) => {
+    updateEnduranceBlocks(clientId, (blocks) => [
+      ...blocks,
+      createEnduranceStepBlock(),
+    ])
+  }
+
+  const addEnduranceRepeatBlock = (clientId: string) => {
+    updateEnduranceBlocks(clientId, (blocks) => [
+      ...blocks,
+      createEnduranceRepeatBlock(),
+    ])
+  }
+
+  const removeEnduranceBlock = (clientId: string, blockId: string) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.filter((block) => block.id !== blockId),
+    )
+  }
+
+  const moveEnduranceBlock = (
+    clientId: string,
+    blockId: string,
+    direction: 'UP' | 'DOWN',
+  ) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      moveItem(blocks, (block) => block.id === blockId, direction),
+    )
+  }
+
+  const updateEnduranceStepBlock = (
+    clientId: string,
+    blockId: string,
+    updates: Partial<EnduranceStepDraft>,
+  ) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.map((block) => {
+        if (block.id !== blockId || block.kind !== 'STEP') return block
+        return { ...block, step: { ...block.step, ...updates } }
+      }),
+    )
+  }
+
+  const updateRepeatBlock = (
+    clientId: string,
+    blockId: string,
+    updates: { repeat?: string },
+  ) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.map((block) => {
+        if (block.id !== blockId || block.kind !== 'REPEAT') return block
+        return { ...block, ...updates }
+      }),
+    )
+  }
+
+  const addRepeatStep = (clientId: string, blockId: string) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.map((block) => {
+        if (block.id !== blockId || block.kind !== 'REPEAT') return block
+        return {
+          ...block,
+          steps: [...block.steps, createEnduranceStepDraft()],
+        }
+      }),
+    )
+  }
+
+  const updateRepeatStep = (
+    clientId: string,
+    blockId: string,
+    stepId: string,
+    updates: Partial<EnduranceStepDraft>,
+  ) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.map((block) => {
+        if (block.id !== blockId || block.kind !== 'REPEAT') return block
+        return {
+          ...block,
+          steps: block.steps.map((step) =>
+            step.id === stepId ? { ...step, ...updates } : step,
+          ),
+        }
+      }),
+    )
+  }
+
+  const removeRepeatStep = (
+    clientId: string,
+    blockId: string,
+    stepId: string,
+  ) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.map((block) => {
+        if (block.id !== blockId || block.kind !== 'REPEAT') return block
+        return {
+          ...block,
+          steps: block.steps.filter((step) => step.id !== stepId),
+        }
+      }),
+    )
+  }
+
+  const moveRepeatStep = (
+    clientId: string,
+    blockId: string,
+    stepId: string,
+    direction: 'UP' | 'DOWN',
+  ) => {
+    updateEnduranceBlocks(clientId, (blocks) =>
+      blocks.map((block) => {
+        if (block.id !== blockId || block.kind !== 'REPEAT') return block
+        return {
+          ...block,
+          steps: moveItem(block.steps, (step) => step.id === stepId, direction),
+        }
+      }),
     )
   }
 
@@ -393,28 +561,18 @@ function App() {
       }
     }
 
-    const intervals = Array.isArray(session.prescription?.intervals)
-      ? (session.prescription.intervals as Array<Record<string, unknown>>)
-      : []
-    const firstInterval = intervals[0] || {}
-    const durationSeconds =
-      typeof firstInterval.durationSeconds === 'number'
-        ? firstInterval.durationSeconds
-        : 0
-    const target =
-      typeof firstInterval.targetZoneOrValue === 'string'
-        ? firstInterval.targetZoneOrValue
-        : ''
+    const { sport, blocks, objective, notes } = mapEndurancePrescriptionToDraft(
+      session.prescription,
+    )
     return {
       clientId: session.id ?? getLocalId(),
       date: session.date.split('T')[0],
       type: session.type,
       title: session.title,
-      enduranceModality: session.prescription?.modality as Modality,
-      enduranceDurationMinutes: durationSeconds
-        ? String(Math.round(durationSeconds / 60))
-        : '',
-      enduranceTarget: target,
+      enduranceSport: sport ?? 'RUN',
+      enduranceBlocks: blocks.length > 0 ? blocks : [createEnduranceStepBlock()],
+      enduranceObjective: objective ?? '',
+      enduranceNotes: notes ?? '',
     }
   }
 
@@ -448,16 +606,12 @@ function App() {
       type: session.type,
       title: session.title,
       prescription: {
-        modality: session.enduranceModality,
-        intervals: [
-          {
-            durationSeconds: Math.round(
-              Number(session.enduranceDurationMinutes) * 60,
-            ),
-            targetType: 'POWER',
-            targetZoneOrValue: session.enduranceTarget,
-          },
-        ],
+        sport: session.enduranceSport,
+        steps: buildEnduranceSteps(session.enduranceBlocks ?? []),
+        ...(session.enduranceObjective
+          ? { objective: session.enduranceObjective }
+          : {}),
+        ...(session.enduranceNotes ? { notes: session.enduranceNotes } : {}),
       },
     }
   }
@@ -531,14 +685,17 @@ function App() {
     }
 
     if (session.type === 'ENDURANCE') {
-      if (!session.enduranceModality) {
-        errors.enduranceModality = 'Modality required.'
+      if (!session.enduranceSport) {
+        errors.enduranceSport = 'Sport required.'
       }
-      if (!session.enduranceDurationMinutes) {
-        errors.enduranceDurationMinutes = 'Duration required.'
-      }
-      if (!session.enduranceTarget) {
-        errors.enduranceTarget = 'Target required.'
+      const blocks = session.enduranceBlocks ?? []
+      if (blocks.length === 0) {
+        errors.enduranceBlocks = 'Add at least one step.'
+      } else {
+        const blockErrors = validateEnduranceBlocks(blocks, session.enduranceSport)
+        if (Object.keys(blockErrors).length > 0) {
+          errors.enduranceBlockErrors = blockErrors
+        }
       }
     }
 
@@ -1224,59 +1381,631 @@ function App() {
                         )}
 
                         {session.type === 'ENDURANCE' && (
-                          <div className="plan-session-fields">
+                          <div className="endurance-builder">
+                            <div className="plan-session-fields">
+                              <label className="field">
+                                <span>Sport</span>
+                                <select
+                                  value={session.enduranceSport ?? ''}
+                                  onChange={(event) =>
+                                    updatePlanSession(session.clientId, {
+                                      enduranceSport: event.target.value as EnduranceSport,
+                                    })
+                                  }
+                                >
+                                  <option value="">Select sport</option>
+                                  <option value="RUN">Run</option>
+                                  <option value="BIKE">Bike</option>
+                                  <option value="SWIM">Swim</option>
+                                </select>
+                                {errors.enduranceSport && (
+                                  <span className="field-error">{errors.enduranceSport}</span>
+                                )}
+                              </label>
+                              <label className="field">
+                                <span>Objective</span>
+                                <input
+                                  type="text"
+                                  value={session.enduranceObjective ?? ''}
+                                  onChange={(event) =>
+                                    updatePlanSession(session.clientId, {
+                                      enduranceObjective: event.target.value,
+                                    })
+                                  }
+                                  placeholder="Primary objective"
+                                />
+                              </label>
+                            </div>
                             <label className="field">
-                              <span>Modality</span>
-                              <select
-                                value={session.enduranceModality ?? ''}
+                              <span>Notes</span>
+                              <textarea
+                                rows={2}
+                                value={session.enduranceNotes ?? ''}
                                 onChange={(event) =>
                                   updatePlanSession(session.clientId, {
-                                    enduranceModality: event.target.value as Modality,
+                                    enduranceNotes: event.target.value,
                                   })
                                 }
+                                placeholder="Optional notes"
+                              />
+                            </label>
+                            <div className="endurance-actions">
+                              <button
+                                className="btn ghost"
+                                type="button"
+                                onClick={() => addEnduranceStep(session.clientId)}
                               >
-                                <option value="">Select modality</option>
-                                <option value="RUN">Run</option>
-                                <option value="BIKE">Bike</option>
-                                <option value="SWIM">Swim</option>
-                                <option value="GYM">Gym</option>
-                              </select>
-                              {errors.enduranceModality && (
-                                <span className="field-error">{errors.enduranceModality}</span>
-                              )}
-                            </label>
-                            <label className="field">
-                              <span>Duration (min)</span>
-                              <input
-                                type="number"
-                                min={1}
-                                value={session.enduranceDurationMinutes ?? ''}
-                                onChange={(event) =>
-                                  updatePlanSession(session.clientId, {
-                                    enduranceDurationMinutes: event.target.value,
-                                  })
+                                Add Step
+                              </button>
+                              <button
+                                className="btn ghost"
+                                type="button"
+                                onClick={() => addEnduranceRepeatBlock(session.clientId)}
+                              >
+                                Add Repeat Block
+                              </button>
+                            </div>
+                            {errors.enduranceBlocks && (
+                              <span className="field-error">{errors.enduranceBlocks}</span>
+                            )}
+                            <div className="endurance-blocks">
+                              {(session.enduranceBlocks ?? []).map((block) => {
+                                const blockError =
+                                  errors.enduranceBlockErrors?.[block.id]
+                                if (block.kind === 'STEP') {
+                                  const step = block.step
+                                  return (
+                                    <div key={block.id} className="endurance-block">
+                                      <div className="endurance-block-header">
+                                        <span className="muted small">Step</span>
+                                        <div className="inline-actions">
+                                          <button
+                                            className="btn ghost"
+                                            type="button"
+                                            onClick={() =>
+                                              moveEnduranceBlock(
+                                                session.clientId,
+                                                block.id,
+                                                'UP',
+                                              )
+                                            }
+                                          >
+                                            ↑
+                                          </button>
+                                          <button
+                                            className="btn ghost"
+                                            type="button"
+                                            onClick={() =>
+                                              moveEnduranceBlock(
+                                                session.clientId,
+                                                block.id,
+                                                'DOWN',
+                                              )
+                                            }
+                                          >
+                                            ↓
+                                          </button>
+                                          <button
+                                            className="btn ghost"
+                                            type="button"
+                                            onClick={() =>
+                                              removeEnduranceBlock(session.clientId, block.id)
+                                            }
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div className="endurance-step-grid">
+                                        <label className="field">
+                                          <span>Type</span>
+                                          <select
+                                            value={step.type}
+                                            onChange={(event) =>
+                                              updateEnduranceStepBlock(session.clientId, block.id, {
+                                                type: event.target.value as EnduranceStepType,
+                                              })
+                                            }
+                                          >
+                                            <option value="WARMUP">Warmup</option>
+                                            <option value="WORK">Work</option>
+                                            <option value="RECOVERY">Recovery</option>
+                                            <option value="COOLDOWN">Cooldown</option>
+                                          </select>
+                                        </label>
+                                        <label className="field">
+                                          <span>Duration Type</span>
+                                          <select
+                                            value={step.durationType}
+                                            onChange={(event) =>
+                                              updateEnduranceStepBlock(session.clientId, block.id, {
+                                                durationType: event.target.value as EnduranceDurationType,
+                                              })
+                                            }
+                                          >
+                                            <option value="TIME">Time (sec)</option>
+                                            <option value="DISTANCE">Distance (m)</option>
+                                          </select>
+                                        </label>
+                                        <label className="field">
+                                          <span>Duration</span>
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            value={step.durationValue}
+                                            onChange={(event) =>
+                                              updateEnduranceStepBlock(session.clientId, block.id, {
+                                                durationValue: event.target.value,
+                                              })
+                                            }
+                                          />
+                                        </label>
+                                        <label className="field">
+                                          <span>Target Type</span>
+                                          <select
+                                            value={step.targetType}
+                                            onChange={(event) =>
+                                              updateEnduranceStepBlock(session.clientId, block.id, {
+                                                targetType: event.target.value as EnduranceTargetType,
+                                              })
+                                            }
+                                          >
+                                            <option value="NONE">None</option>
+                                            <option value="POWER">Power</option>
+                                            <option value="HEART_RATE">Heart Rate</option>
+                                            <option value="PACE">Pace</option>
+                                          </select>
+                                        </label>
+                                        {step.targetType !== 'NONE' && (
+                                          <>
+                                            <label className="field">
+                                              <span>Zone</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                max={5}
+                                                value={step.targetZone ?? ''}
+                                                onChange={(event) =>
+                                                  updateEnduranceStepBlock(session.clientId, block.id, {
+                                                    targetZone: event.target.value,
+                                                  })
+                                                }
+                                                placeholder="1-5"
+                                              />
+                                              <p className="field-hint">
+                                                {step.targetType === 'POWER'
+                                                  ? 'Zone (1-5) or watts range, not both'
+                                                  : step.targetType === 'HEART_RATE'
+                                                    ? 'Zone (1-5) or bpm range, not both'
+                                                    : 'Zone (1-5) or sec/km range, not both'}
+                                              </p>
+                                            </label>
+                                            <label className="field">
+                                              <span>Min</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={step.targetMin ?? ''}
+                                                onChange={(event) =>
+                                                  updateEnduranceStepBlock(session.clientId, block.id, {
+                                                    targetMin: event.target.value,
+                                                  })
+                                                }
+                                                placeholder={
+                                                  step.targetType === 'POWER'
+                                                    ? 'e.g., 200'
+                                                    : step.targetType === 'HEART_RATE'
+                                                      ? 'e.g., 150'
+                                                      : 'e.g., 240'
+                                                }
+                                              />
+                                            </label>
+                                            <label className="field">
+                                              <span>Max</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={step.targetMax ?? ''}
+                                                onChange={(event) =>
+                                                  updateEnduranceStepBlock(session.clientId, block.id, {
+                                                    targetMax: event.target.value,
+                                                  })
+                                                }
+                                                placeholder={
+                                                  step.targetType === 'POWER'
+                                                    ? 'e.g., 250'
+                                                    : step.targetType === 'HEART_RATE'
+                                                      ? 'e.g., 170'
+                                                      : 'e.g., 300'
+                                                }
+                                              />
+                                            </label>
+                                          </>
+                                        )}
+                                        {session.enduranceSport === 'BIKE' && (
+                                          <>
+                                            <label className="field">
+                                              <span>Cadence Min (RPM)</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={step.cadenceMin ?? ''}
+                                                onChange={(event) =>
+                                                  updateEnduranceStepBlock(
+                                                    session.clientId,
+                                                    block.id,
+                                                    { cadenceMin: event.target.value },
+                                                  )
+                                                }
+                                              />
+                                            </label>
+                                            <label className="field">
+                                              <span>Cadence Max (RPM)</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={step.cadenceMax ?? ''}
+                                                onChange={(event) =>
+                                                  updateEnduranceStepBlock(
+                                                    session.clientId,
+                                                    block.id,
+                                                    { cadenceMax: event.target.value },
+                                                  )
+                                                }
+                                              />
+                                            </label>
+                                          </>
+                                        )}
+                                        <label className="field endurance-note">
+                                          <span>Note</span>
+                                          <input
+                                            type="text"
+                                            value={step.note ?? ''}
+                                            onChange={(event) =>
+                                              updateEnduranceStepBlock(session.clientId, block.id, {
+                                                note: event.target.value,
+                                              })
+                                            }
+                                            placeholder="Optional note"
+                                          />
+                                        </label>
+                                      </div>
+                                      {blockError && (
+                                        <span className="field-error">{blockError}</span>
+                                      )}
+                                    </div>
+                                  )
                                 }
-                              />
-                              {errors.enduranceDurationMinutes && (
-                                <span className="field-error">{errors.enduranceDurationMinutes}</span>
-                              )}
-                            </label>
-                            <label className="field">
-                              <span>Target</span>
-                              <input
-                                type="text"
-                                value={session.enduranceTarget ?? ''}
-                                onChange={(event) =>
-                                  updatePlanSession(session.clientId, {
-                                    enduranceTarget: event.target.value,
-                                  })
-                                }
-                                placeholder="65-75% FTP"
-                              />
-                              {errors.enduranceTarget && (
-                                <span className="field-error">{errors.enduranceTarget}</span>
-                              )}
-                            </label>
+
+                                return (
+                                  <div key={block.id} className="endurance-block">
+                                    <div className="endurance-block-header">
+                                      <span className="muted small">Repeat Block</span>
+                                      <div className="repeat-controls">
+                                        <label className="field">
+                                          <span>Repeat</span>
+                                          <input
+                                            type="number"
+                                            min={2}
+                                            value={block.repeat}
+                                            onChange={(event) =>
+                                              updateRepeatBlock(session.clientId, block.id, {
+                                                repeat: event.target.value,
+                                              })
+                                            }
+                                          />
+                                        </label>
+                                        <div className="inline-actions">
+                                          <button
+                                            className="btn ghost"
+                                            type="button"
+                                            onClick={() =>
+                                              moveEnduranceBlock(
+                                                session.clientId,
+                                                block.id,
+                                                'UP',
+                                              )
+                                            }
+                                          >
+                                            ↑
+                                          </button>
+                                          <button
+                                            className="btn ghost"
+                                            type="button"
+                                            onClick={() =>
+                                              moveEnduranceBlock(
+                                                session.clientId,
+                                                block.id,
+                                                'DOWN',
+                                              )
+                                            }
+                                          >
+                                            ↓
+                                          </button>
+                                          <button
+                                            className="btn ghost"
+                                            type="button"
+                                            onClick={() =>
+                                              removeEnduranceBlock(session.clientId, block.id)
+                                            }
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="repeat-steps">
+                                      {block.steps.map((step) => (
+                                        <div key={step.id} className="endurance-step">
+                                        <div className="endurance-step-header">
+                                          <span className="muted small">Step</span>
+                                          <div className="inline-actions">
+                                            <button
+                                              className="btn ghost"
+                                              type="button"
+                                              onClick={() =>
+                                                moveRepeatStep(
+                                                  session.clientId,
+                                                  block.id,
+                                                  step.id,
+                                                  'UP',
+                                                )
+                                              }
+                                            >
+                                              ↑
+                                            </button>
+                                            <button
+                                              className="btn ghost"
+                                              type="button"
+                                              onClick={() =>
+                                                moveRepeatStep(
+                                                  session.clientId,
+                                                  block.id,
+                                                  step.id,
+                                                  'DOWN',
+                                                )
+                                              }
+                                            >
+                                              ↓
+                                            </button>
+                                            <button
+                                              className="btn ghost"
+                                              type="button"
+                                              onClick={() =>
+                                                removeRepeatStep(
+                                                  session.clientId,
+                                                  block.id,
+                                                  step.id,
+                                                )
+                                              }
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                        </div>
+                                          <div className="endurance-step-grid">
+                                            <label className="field">
+                                              <span>Type</span>
+                                              <select
+                                                value={step.type}
+                                                onChange={(event) =>
+                                                  updateRepeatStep(
+                                                    session.clientId,
+                                                    block.id,
+                                                    step.id,
+                                                    {
+                                                      type: event.target.value as EnduranceStepType,
+                                                    },
+                                                  )
+                                                }
+                                              >
+                                                <option value="WARMUP">Warmup</option>
+                                                <option value="WORK">Work</option>
+                                                <option value="RECOVERY">Recovery</option>
+                                                <option value="COOLDOWN">Cooldown</option>
+                                              </select>
+                                            </label>
+                                            <label className="field">
+                                              <span>Duration Type</span>
+                                              <select
+                                                value={step.durationType}
+                                                onChange={(event) =>
+                                                  updateRepeatStep(
+                                                    session.clientId,
+                                                    block.id,
+                                                    step.id,
+                                                    {
+                                                      durationType: event.target.value as EnduranceDurationType,
+                                                    },
+                                                  )
+                                                }
+                                              >
+                                                <option value="TIME">Time (sec)</option>
+                                                <option value="DISTANCE">Distance (m)</option>
+                                              </select>
+                                            </label>
+                                            <label className="field">
+                                              <span>Duration</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={step.durationValue}
+                                                onChange={(event) =>
+                                                  updateRepeatStep(
+                                                    session.clientId,
+                                                    block.id,
+                                                    step.id,
+                                                    { durationValue: event.target.value },
+                                                  )
+                                                }
+                                              />
+                                            </label>
+                                            <label className="field">
+                                              <span>Target Type</span>
+                                              <select
+                                                value={step.targetType}
+                                                onChange={(event) =>
+                                                  updateRepeatStep(
+                                                    session.clientId,
+                                                    block.id,
+                                                    step.id,
+                                                    {
+                                                      targetType: event.target.value as EnduranceTargetType,
+                                                    },
+                                                  )
+                                                }
+                                              >
+                                                <option value="NONE">None</option>
+                                                <option value="POWER">Power</option>
+                                                <option value="HEART_RATE">Heart Rate</option>
+                                                <option value="PACE">Pace</option>
+                                              </select>
+                                            </label>
+                                            {step.targetType !== 'NONE' && (
+                                              <>
+                                                <label className="field">
+                                                  <span>Zone</span>
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={5}
+                                                    value={step.targetZone ?? ''}
+                                                    onChange={(event) =>
+                                                      updateRepeatStep(
+                                                        session.clientId,
+                                                        block.id,
+                                                        step.id,
+                                                        { targetZone: event.target.value },
+                                                      )
+                                                    }
+                                                    placeholder="1-5"
+                                                  />
+                                                  <p className="field-hint">
+                                                    {step.targetType === 'POWER'
+                                                      ? 'Zone (1-5) or watts range, not both'
+                                                      : step.targetType === 'HEART_RATE'
+                                                        ? 'Zone (1-5) or bpm range, not both'
+                                                        : 'Zone (1-5) or sec/km range, not both'}
+                                                  </p>
+                                                </label>
+                                                <label className="field">
+                                                  <span>Min</span>
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={step.targetMin ?? ''}
+                                                    onChange={(event) =>
+                                                      updateRepeatStep(
+                                                        session.clientId,
+                                                        block.id,
+                                                        step.id,
+                                                        { targetMin: event.target.value },
+                                                      )
+                                                    }
+                                                    placeholder={
+                                                      step.targetType === 'POWER'
+                                                        ? 'e.g., 200'
+                                                        : step.targetType === 'HEART_RATE'
+                                                          ? 'e.g., 150'
+                                                          : 'e.g., 240'
+                                                    }
+                                                  />
+                                                </label>
+                                                <label className="field">
+                                                  <span>Max</span>
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={step.targetMax ?? ''}
+                                                    onChange={(event) =>
+                                                      updateRepeatStep(
+                                                        session.clientId,
+                                                        block.id,
+                                                        step.id,
+                                                        { targetMax: event.target.value },
+                                                      )
+                                                    }
+                                                    placeholder={
+                                                      step.targetType === 'POWER'
+                                                        ? 'e.g., 250'
+                                                        : step.targetType === 'HEART_RATE'
+                                                          ? 'e.g., 170'
+                                                          : 'e.g., 300'
+                                                    }
+                                                  />
+                                                </label>
+                                              </>
+                                            )}
+                                            {session.enduranceSport === 'BIKE' && (
+                                              <>
+                                                <label className="field">
+                                                  <span>Cadence Min (RPM)</span>
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={step.cadenceMin ?? ''}
+                                                    onChange={(event) =>
+                                                      updateRepeatStep(
+                                                        session.clientId,
+                                                        block.id,
+                                                        step.id,
+                                                        { cadenceMin: event.target.value },
+                                                      )
+                                                    }
+                                                  />
+                                                </label>
+                                                <label className="field">
+                                                  <span>Cadence Max (RPM)</span>
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={step.cadenceMax ?? ''}
+                                                    onChange={(event) =>
+                                                      updateRepeatStep(
+                                                        session.clientId,
+                                                        block.id,
+                                                        step.id,
+                                                        { cadenceMax: event.target.value },
+                                                      )
+                                                    }
+                                                  />
+                                                </label>
+                                              </>
+                                            )}
+                                            <label className="field endurance-note">
+                                              <span>Note</span>
+                                              <input
+                                                type="text"
+                                                value={step.note ?? ''}
+                                                onChange={(event) =>
+                                                  updateRepeatStep(
+                                                    session.clientId,
+                                                    block.id,
+                                                    step.id,
+                                                    { note: event.target.value },
+                                                  )
+                                                }
+                                                placeholder="Optional note"
+                                              />
+                                            </label>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      <button
+                                        className="btn ghost"
+                                        type="button"
+                                        onClick={() => addRepeatStep(session.clientId, block.id)}
+                                      >
+                                        Add Step
+                                      </button>
+                                    </div>
+                                    {blockError && (
+                                      <span className="field-error">{blockError}</span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1597,6 +2326,364 @@ function formatDayLabel(dateString: string) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function createEnduranceStepDraft(): EnduranceStepDraft {
+  return {
+    id: getLocalId(),
+    type: 'WORK',
+    durationType: 'TIME',
+    durationValue: '',
+    targetType: 'NONE',
+  }
+}
+
+function createEnduranceStepBlock(): EnduranceBlockDraft {
+  return {
+    id: getLocalId(),
+    kind: 'STEP',
+    step: createEnduranceStepDraft(),
+  }
+}
+
+function createEnduranceRepeatBlock(): EnduranceBlockDraft {
+  return {
+    id: getLocalId(),
+    kind: 'REPEAT',
+    repeat: '2',
+    steps: [createEnduranceStepDraft()],
+  }
+}
+
+function buildEnduranceSteps(blocks: EnduranceBlockDraft[]) {
+  return blocks.map((block) => {
+    if (block.kind === 'REPEAT') {
+      return {
+        repeat: Number(block.repeat),
+        steps: block.steps.map((step) => buildEnduranceStep(step)),
+      }
+    }
+    return buildEnduranceStep(block.step)
+  })
+}
+
+function buildEnduranceStep(step: EnduranceStepDraft) {
+  const durationValue = Number(step.durationValue)
+  const primaryTarget = buildPrimaryTarget(step)
+  const cadenceTarget = buildCadenceTarget(step)
+  return {
+    type: step.type,
+    duration: {
+      type: step.durationType,
+      value: durationValue,
+    },
+    ...(primaryTarget && { primaryTarget }),
+    ...(cadenceTarget && { cadenceTarget }),
+    ...(step.note ? { note: step.note } : {}),
+  }
+}
+
+function buildPrimaryTarget(step: EnduranceStepDraft) {
+  if (step.targetType === 'NONE') {
+    return undefined
+  }
+  const zoneValue = toNumber(step.targetZone)
+  const minValue = toNumber(step.targetMin)
+  const maxValue = toNumber(step.targetMax)
+  const range =
+    zoneValue !== null ? undefined : buildPrimaryRange(step.targetType, minValue, maxValue)
+  return {
+    kind: step.targetType,
+    unit: mapPrimaryUnit(step.targetType),
+    ...(zoneValue !== null && { zone: zoneValue }),
+    ...(range ?? {}),
+  }
+}
+
+function buildCadenceTarget(step: EnduranceStepDraft) {
+  const minValue = toNumber(step.cadenceMin)
+  const maxValue = toNumber(step.cadenceMax)
+  if (minValue === null || maxValue === null) return undefined
+  return {
+    kind: 'CADENCE' as const,
+    unit: 'RPM' as const,
+    minRpm: minValue,
+    maxRpm: maxValue,
+  }
+}
+
+function mapPrimaryUnit(kind: EnduranceTargetType) {
+  if (kind === 'POWER') return 'WATTS' as const
+  if (kind === 'HEART_RATE') return 'BPM' as const
+  return 'SEC_PER_KM' as const
+}
+
+function buildPrimaryRange(
+  kind: EnduranceTargetType,
+  minValue: number | null,
+  maxValue: number | null,
+) {
+  if (minValue === null || maxValue === null) return undefined
+  if (kind === 'POWER') {
+    return { minWatts: minValue, maxWatts: maxValue }
+  }
+  if (kind === 'HEART_RATE') {
+    return { minBpm: minValue, maxBpm: maxValue }
+  }
+  return { minSecPerKm: minValue, maxSecPerKm: maxValue }
+}
+
+function mapPrimaryRangeToDraft(target: Record<string, unknown>) {
+  const legacyMin = typeof target.min === 'number' ? String(target.min) : undefined
+  const legacyMax = typeof target.max === 'number' ? String(target.max) : undefined
+  if (typeof target.kind !== 'string') return undefined
+  if (target.kind === 'POWER') {
+    return {
+      min:
+        typeof target.minWatts === 'number'
+          ? String(target.minWatts)
+          : legacyMin,
+      max:
+        typeof target.maxWatts === 'number'
+          ? String(target.maxWatts)
+          : legacyMax,
+    }
+  }
+  if (target.kind === 'HEART_RATE') {
+    return {
+      min: typeof target.minBpm === 'number' ? String(target.minBpm) : legacyMin,
+      max: typeof target.maxBpm === 'number' ? String(target.maxBpm) : legacyMax,
+    }
+  }
+  if (target.kind === 'PACE') {
+    return {
+      min:
+        typeof target.minSecPerKm === 'number'
+          ? String(target.minSecPerKm)
+          : legacyMin,
+      max:
+        typeof target.maxSecPerKm === 'number'
+          ? String(target.maxSecPerKm)
+          : legacyMax,
+    }
+  }
+  return undefined
+}
+
+function toNumber(value?: string) {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function mapEndurancePrescriptionToDraft(
+  prescription: Record<string, unknown>,
+): {
+  sport: EnduranceSport | null
+  blocks: EnduranceBlockDraft[]
+  objective?: string
+  notes?: string
+} {
+  if (prescription && typeof prescription === 'object') {
+    if ('sport' in prescription && Array.isArray(prescription.steps)) {
+      const sportValue = prescription.sport
+      const isValidSport =
+        typeof sportValue === 'string' &&
+        (sportValue === 'BIKE' || sportValue === 'RUN' || sportValue === 'SWIM')
+      const steps = prescription.steps as Array<Record<string, unknown>>
+      const objective =
+        typeof prescription.objective === 'string' ? prescription.objective : undefined
+      const notes = typeof prescription.notes === 'string' ? prescription.notes : undefined
+      return {
+        sport: isValidSport ? (sportValue as EnduranceSport) : null,
+        blocks: steps.map((step) => mapEnduranceBlock(step)),
+        objective,
+        notes,
+      }
+    }
+    if ('modality' in prescription) {
+      return mapLegacyEndurancePrescription(prescription)
+    }
+  }
+
+  return { sport: null, blocks: [] }
+}
+
+function mapEnduranceBlock(step: Record<string, unknown>): EnduranceBlockDraft {
+  if ('repeat' in step && 'steps' in step && Array.isArray(step.steps)) {
+    const repeatValue = String(step.repeat ?? '2')
+    const nestedSteps = step.steps as Array<Record<string, unknown>>
+    return {
+      id: getLocalId(),
+      kind: 'REPEAT',
+      repeat: repeatValue,
+      steps: nestedSteps.map((nested) => mapEnduranceStep(nested)),
+    }
+  }
+  return {
+    id: getLocalId(),
+    kind: 'STEP',
+    step: mapEnduranceStep(step),
+  }
+}
+
+function mapEnduranceStep(step: Record<string, unknown>): EnduranceStepDraft {
+  const duration = isRecord(step.duration) ? step.duration : {}
+  const primaryTarget = isRecord(step.primaryTarget) ? step.primaryTarget : {}
+  const cadenceTarget = isRecord(step.cadenceTarget) ? step.cadenceTarget : {}
+  const targetKind =
+    typeof primaryTarget.kind === 'string'
+      ? (primaryTarget.kind as EnduranceTargetType)
+      : 'NONE'
+  const targetZone =
+    typeof primaryTarget.zone === 'number' ? String(primaryTarget.zone) : undefined
+  const range = mapPrimaryRangeToDraft(primaryTarget)
+  return {
+    id: getLocalId(),
+    type: (step.type as EnduranceStepType) ?? 'WORK',
+    durationType: (duration.type as EnduranceDurationType) ?? 'TIME',
+    durationValue:
+      typeof duration.value === 'number' ? String(duration.value) : '',
+    targetType: targetKind,
+    targetZone,
+    targetMin: range?.min,
+    targetMax: range?.max,
+    cadenceMin:
+      typeof cadenceTarget.minRpm === 'number'
+        ? String(cadenceTarget.minRpm)
+        : undefined,
+    cadenceMax:
+      typeof cadenceTarget.maxRpm === 'number'
+        ? String(cadenceTarget.maxRpm)
+        : undefined,
+    note: typeof step.note === 'string' ? step.note : undefined,
+  }
+}
+
+function mapLegacyEndurancePrescription(
+  prescription: Record<string, unknown>,
+): { sport: EnduranceSport | null; blocks: EnduranceBlockDraft[]; notes?: string } {
+  const modality = prescription.modality as Modality | undefined
+  const sport: EnduranceSport =
+    modality === 'BIKE' ? 'BIKE' : modality === 'SWIM' ? 'SWIM' : 'RUN'
+  const intervals = Array.isArray(prescription.intervals)
+    ? (prescription.intervals as Array<Record<string, unknown>>)
+    : []
+  const warmup = typeof prescription.warmup === 'string' ? prescription.warmup : ''
+  const cooldown = typeof prescription.cooldown === 'string' ? prescription.cooldown : ''
+  const blocks = intervals.map((interval, index) => {
+    const noteParts = [
+      typeof interval.targetZoneOrValue === 'string'
+        ? `Legacy target: ${interval.targetZoneOrValue}`
+        : undefined,
+      index === 0 && warmup ? `Warmup: ${warmup}` : undefined,
+      index === intervals.length - 1 && cooldown ? `Cooldown: ${cooldown}` : undefined,
+    ].filter((part): part is string => Boolean(part))
+    return {
+      id: getLocalId(),
+      kind: 'STEP' as const,
+      step: {
+        id: getLocalId(),
+        type: 'WORK' as EnduranceStepType,
+        durationType: 'TIME' as EnduranceDurationType,
+        durationValue:
+          typeof interval.durationSeconds === 'number'
+            ? String(interval.durationSeconds)
+            : '',
+        targetType: 'NONE' as EnduranceTargetType,
+        note: noteParts.length > 0 ? noteParts.join(' • ') : undefined,
+      },
+    }
+  })
+  const notes = [warmup && `Warmup: ${warmup}`, cooldown && `Cooldown: ${cooldown}`]
+    .filter((part): part is string => Boolean(part))
+    .join(' • ')
+  return { sport, blocks, notes: notes.length > 0 ? notes : undefined }
+}
+
+function validateEnduranceBlocks(
+  blocks: EnduranceBlockDraft[],
+  sport?: EnduranceSport,
+) {
+  const errors: Record<string, string> = {}
+  blocks.forEach((block) => {
+    if (block.kind === 'STEP') {
+      const error = validateEnduranceStep(block.step, sport)
+      if (error) {
+        errors[block.id] = error
+      }
+      return
+    }
+    if (Number(block.repeat) < 2) {
+      errors[block.id] = 'Repeat count must be at least 2.'
+      return
+    }
+    const stepErrors = block.steps
+      .map((step) => validateEnduranceStep(step, sport))
+      .filter(Boolean)
+    if (stepErrors.length > 0) {
+      errors[block.id] = 'Fix the repeat block steps.'
+    }
+  })
+  return errors
+}
+
+function validateEnduranceStep(step: EnduranceStepDraft, sport?: EnduranceSport) {
+  const durationValue = Number(step.durationValue)
+  if (!step.type || !step.durationType) {
+    return 'Step type and duration are required.'
+  }
+  if (!Number.isFinite(durationValue) || durationValue <= 0) {
+    return 'Duration must be greater than 0.'
+  }
+  if (!step.targetType) {
+    return 'Target type is required.'
+  }
+  if (step.targetType !== 'NONE') {
+    const zone = toNumber(step.targetZone)
+    const min = toNumber(step.targetMin)
+    const max = toNumber(step.targetMax)
+    if ((zone !== null && (min !== null || max !== null)) || (zone === null && (min === null || max === null))) {
+      return 'Target needs zone or min/max.'
+    }
+    if ((min !== null && max === null) || (min === null && max !== null)) {
+      return 'Target needs both min and max.'
+    }
+  }
+  const cadenceMin = toNumber(step.cadenceMin)
+  const cadenceMax = toNumber(step.cadenceMax)
+  if (cadenceMin !== null || cadenceMax !== null) {
+    if (sport !== 'BIKE') {
+      return 'Cadence is only allowed for bike sessions.'
+    }
+    if (cadenceMin === null || cadenceMax === null) {
+      return 'Cadence needs min and max.'
+    }
+    if (cadenceMin <= 0 || cadenceMax < cadenceMin) {
+      return 'Cadence range is invalid.'
+    }
+  }
+  return null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function moveItem<T>(
+  items: T[],
+  predicate: (item: T) => boolean,
+  direction: 'UP' | 'DOWN',
+): T[] {
+  const index = items.findIndex(predicate)
+  if (index === -1) return items
+  const targetIndex = direction === 'UP' ? index - 1 : index + 1
+  if (targetIndex < 0 || targetIndex >= items.length) return items
+  const next = [...items]
+  const temp = next[index]
+  next[index] = next[targetIndex]
+  next[targetIndex] = temp
+  return next
 }
 
 function getLogField(summary: Record<string, unknown>, key: string) {
