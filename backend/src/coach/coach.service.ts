@@ -10,6 +10,11 @@ import { InvitationStatus } from '@prisma/client';
 import { randomBytes, createHash } from 'crypto';
 import { QuerySessionsDto } from './dto/query-sessions.dto';
 import { calculateWeekSummary } from '../metrics/week-summary';
+import {
+  normalizeEnduranceWorkout,
+  type EndurancePrescription,
+  type NormalizedWorkout,
+} from '../integrations/endurance/endurance-normalizer';
 
 @Injectable()
 export class CoachService {
@@ -278,6 +283,126 @@ export class CoachService {
       throw new ForbiddenException(
         'Coach does not have permission to manage this athlete',
       );
+    }
+  }
+
+  async getNormalizedWorkout(
+    coachUserId: string,
+    sessionId: string,
+  ): Promise<NormalizedWorkout> {
+    // Fetch session with weeklyPlan relation
+    const session = await this.prisma.trainingSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        weeklyPlan: {
+          select: {
+            athleteUserId: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Training session not found');
+    }
+
+    // Verify coach has access to athlete
+    await this.verifyCoachAthleteRelationship(
+      coachUserId,
+      session.weeklyPlan.athleteUserId,
+    );
+
+    // Validate session type is ENDURANCE
+    if (session.type !== 'ENDURANCE') {
+      throw new BadRequestException(
+        'This endpoint only supports endurance sessions',
+      );
+    }
+
+    // Use the imported normalizer
+
+    // Convert prescription from DB format to EndurancePrescription format
+    // The prescription in DB is already normalized by weekly-plans.service.ts
+    // but may need conversion to match the exact format expected by the normalizer
+    const dbPrescription = session.prescription as {
+      sport: string;
+      steps: Array<
+        | {
+            type: string;
+            duration: { type: string; value: number };
+            primaryTarget?: {
+              kind: string;
+              unit: string;
+              zone?: number;
+              minWatts?: number;
+              maxWatts?: number;
+              minBpm?: number;
+              maxBpm?: number;
+              minSecPerKm?: number;
+              maxSecPerKm?: number;
+            };
+            cadenceTarget?: {
+              kind: string;
+              unit: string;
+              minRpm: number;
+              maxRpm: number;
+            };
+            note?: string;
+          }
+        | {
+            repeat: number;
+            steps: Array<{
+              type: string;
+              duration: { type: string; value: number };
+              primaryTarget?: {
+                kind: string;
+                unit: string;
+                zone?: number;
+                minWatts?: number;
+                maxWatts?: number;
+                minBpm?: number;
+                maxBpm?: number;
+                minSecPerKm?: number;
+                maxSecPerKm?: number;
+              };
+              cadenceTarget?: {
+                kind: string;
+                unit: string;
+                minRpm: number;
+                maxRpm: number;
+              };
+              note?: string;
+            }>;
+          }
+      >;
+      objective?: string;
+      notes?: string;
+    };
+
+    if (
+      !dbPrescription ||
+      !dbPrescription.sport ||
+      !Array.isArray(dbPrescription.steps)
+    ) {
+      throw new BadRequestException('Invalid endurance prescription format');
+    }
+
+    // The prescription in DB is already normalized by weekly-plans.service.ts
+    // It should be in a format compatible with the normalizer
+    // We cast it to EndurancePrescription (the normalizer will handle validation)
+    const prescriptionForNormalizer =
+      dbPrescription as unknown as EndurancePrescription;
+
+    try {
+      const normalized = normalizeEnduranceWorkout(prescriptionForNormalizer);
+      return normalized;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequestException(
+          `Failed to normalize workout: ${error.message}`,
+        );
+      }
+      throw new BadRequestException('Failed to normalize workout');
     }
   }
 }

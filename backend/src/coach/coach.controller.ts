@@ -114,4 +114,13 @@ export class CoachController {
       query.weekStart,
     );
   }
+
+  @Get('sessions/:sessionId/export/normalized')
+  @HttpCode(HttpStatus.OK)
+  async getNormalizedWorkout(
+    @Request() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.coachService.getNormalizedWorkout(req.user.id, sessionId);
+  }
 }
