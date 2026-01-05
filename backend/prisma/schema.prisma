@@ -44,6 +44,7 @@ model CoachProfile {
   athletes       CoachAthlete[]
   sentInvitations Invitation[]
   auditLogs      AuditLog[]
+  garminConnection GarminConnection?
 
   @@map("coach_profiles")
 }
@@ -224,4 +225,19 @@ model WorkoutLog {
 
   @@index([athleteUserId])
   @@map("workout_logs")
+}
+
+// Garmin OAuth connection for coaches
+model GarminConnection {
+  id           String   @id @default(uuid())
+  coachProfileId String @unique
+  coachProfile  CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  accessToken  String   // Encrypted at application level
+  refreshToken String   // Encrypted at application level
+  expiresAt    DateTime // Access token expiration
+  connectedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("garmin_connections")
 }
