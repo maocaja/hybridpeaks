@@ -249,7 +249,9 @@ describe('Coach Export Normalized Endpoint (e2e)', () => {
       const strengthSessionId = strengthPlan.sessions[0].id;
 
       return request(app.getHttpServer())
-        .get(`/api/coach/athletes/sessions/${strengthSessionId}/export/normalized`)
+        .get(
+          `/api/coach/athletes/sessions/${strengthSessionId}/export/normalized`,
+        )
         .set('Authorization', `Bearer ${coachToken}`)
         .expect(400)
         .expect((res) => {
@@ -295,4 +297,3 @@ describe('Coach Export Normalized Endpoint (e2e)', () => {
     });
   });
 });
-
