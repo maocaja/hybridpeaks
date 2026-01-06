@@ -225,7 +225,8 @@ export class AthleteService {
       throw new NotFoundException('Session not found');
     }
 
-    return this.prisma.workoutLog.upsert({
+    // Create or update workout log
+    const log = await this.prisma.workoutLog.upsert({
       where: { sessionId },
       update: {
         summary: dto.summary as Prisma.InputJsonValue,
@@ -237,6 +238,20 @@ export class AthleteService {
         summary: dto.summary as Prisma.InputJsonValue,
       },
     });
+
+    // Automatically update session status to COMPLETED when log is created/updated
+    // Only if session is still PLANNED (don't override MISSED or MODIFIED)
+    if (session.status === 'PLANNED') {
+      await this.prisma.trainingSession.update({
+        where: { id: sessionId },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    return log;
   }
 
   async getWorkoutLog(athleteUserId: string, sessionId: string) {

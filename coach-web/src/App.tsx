@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { PlanningScreen } from './features/planning/PlanningScreen'
 import './App.css'
 
 interface Athlete {
@@ -1171,10 +1172,13 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'plans' && (
+        {activeTab === 'plans' && <PlanningScreen />}
+
+        {/* Old plans UI - disabled for now */}
+        {false && (
           <div className="card">
             <div className="card-header">
-              <h2>Weekly Plans</h2>
+              <h2>Weekly Plans (Old)</h2>
             </div>
             <div className="plan-controls">
               <label className="field">

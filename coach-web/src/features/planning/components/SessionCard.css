@@ -1,0 +1,76 @@
+.session-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.session-card:hover {
+  border-color: #d0d0d0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.session-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.session-card-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.session-card-badge-strength {
+  background: #fee;
+  color: #dc2626;
+}
+
+.session-card-badge-endurance {
+  background: #eef;
+  color: #2563eb;
+}
+
+.session-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.session-card-details {
+  font-size: 14px;
+  color: #666666;
+}
+
+.session-card-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.session-card-action {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.session-card-action:hover {
+  background: #f0f0f0;
+}
+
+.session-card-action-delete:hover {
+  background: #fee;
+}
+

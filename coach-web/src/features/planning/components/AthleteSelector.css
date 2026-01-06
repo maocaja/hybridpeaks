@@ -1,0 +1,153 @@
+.athlete-selector {
+  position: relative;
+  width: 100%;
+}
+
+.athlete-selector-trigger {
+  width: 100%;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 16px;
+  transition: border-color 0.2s;
+  gap: 8px;
+}
+
+.athlete-selector-trigger:hover {
+  border-color: #d0d0d0;
+}
+
+.athlete-selector-trigger:focus {
+  outline: none;
+  border-color: var(--strava-orange, #FC4C02);
+}
+
+.athlete-selector-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.athlete-selector-selected {
+  color: #1a1a1a;
+  flex: 1;
+  text-align: left;
+}
+
+.athlete-selector-placeholder {
+  color: #999999;
+  flex: 1;
+  text-align: left;
+}
+
+.athlete-selector-arrow {
+  color: #666666;
+  font-size: 12px;
+}
+
+.athlete-selector-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.athlete-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 101;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.athlete-selector-search {
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.athlete-selector-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.athlete-selector-search-input:focus {
+  outline: none;
+  border-color: var(--strava-orange, #FC4C02);
+}
+
+.athlete-selector-list {
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+.athlete-selector-item {
+  width: 100%;
+  padding: 12px;
+  background: white;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.2s;
+}
+
+.athlete-selector-item:hover {
+  background: #fafafa;
+}
+
+.athlete-selector-item-selected {
+  background: #fff4f0;
+  color: var(--strava-orange, #FC4C02);
+}
+
+.athlete-selector-item-email {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.athlete-selector-item-selected .athlete-selector-item-email {
+  color: var(--strava-orange, #FC4C02);
+  font-weight: 500;
+}
+
+.athlete-selector-item-check {
+  color: var(--strava-orange, #FC4C02);
+  font-weight: bold;
+}
+
+.athlete-selector-empty {
+  padding: 24px;
+  text-align: center;
+  color: #999999;
+  font-size: 14px;
+}
+
+.athlete-selector-error {
+  padding: 12px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 6px;
+  color: #c33;
+  font-size: 14px;
+}
+

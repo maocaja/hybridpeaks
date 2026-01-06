@@ -7,6 +7,7 @@ import {
   IsUUID,
   Max,
   Min,
+  MaxLength,
   ValidateNested,
   IsArray,
 } from 'class-validator';
@@ -44,6 +45,7 @@ export class StrengthSummaryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000, { message: 'Notes must be 1000 characters or less' })
   notes?: string;
 
   @IsOptional()
@@ -77,5 +79,6 @@ export class EnduranceSummaryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000, { message: 'Notes must be 1000 characters or less' })
   notes?: string;
 }

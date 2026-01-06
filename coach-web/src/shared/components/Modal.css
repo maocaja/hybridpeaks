@@ -1,0 +1,130 @@
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-height: calc(90vh - 40px); /* Account for backdrop padding */
+  height: calc(90vh - 40px); /* Force specific height */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-small {
+  width: 100%;
+  max-width: 400px;
+}
+
+.modal-medium {
+  width: 100%;
+  max-width: 600px;
+}
+
+.modal-large {
+  width: 100%;
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0; /* Prevent header from shrinking */
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #666666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: #f0f0f0;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto !important; /* Force scroll */
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0; /* Critical for flexbox scrolling to work */
+  /* Calculate max height: modal height - header height - footer height */
+  max-height: calc(90vh - 40px - 80px - 70px); /* 90vh - backdrop padding - header - footer */
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #3b82f6 #f0f0f0; /* Blue scrollbar for visibility */
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 12px; /* Wider scrollbar for better visibility */
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: #3b82f6; /* Blue scrollbar for visibility */
+  border-radius: 4px;
+  border: 2px solid #e5e7eb;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-shrink: 0; /* Prevent footer from shrinking */
+}
+
+@media (max-width: 768px) {
+  .modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-backdrop {
+    padding: 0;
+  }
+}
+

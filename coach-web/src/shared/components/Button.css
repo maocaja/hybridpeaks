@@ -1,0 +1,102 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Variants */
+.btn-primary {
+  background: var(--strava-orange, #FC4C02);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--strava-orange-hover, #e64402);
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e0e0e0;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #1a1a1a;
+  border: 1px solid #e0e0e0;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #fafafa;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+/* Sizes */
+.btn-small {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.btn-medium {
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+.btn-large {
+  padding: 14px 28px;
+  font-size: 18px;
+}
+
+/* Loading state */
+.btn-loading {
+  position: relative;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.btn-ghost .btn-spinner,
+.btn-secondary .btn-spinner {
+  border-color: rgba(0, 0, 0, 0.2);
+  border-top-color: #1a1a1a;
+}
+
+.btn-content-loading {
+  opacity: 0.7;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

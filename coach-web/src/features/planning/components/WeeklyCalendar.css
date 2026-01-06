@@ -1,0 +1,95 @@
+.weekly-calendar {
+  width: 100%;
+}
+
+.weekly-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 16px;
+}
+
+.weekly-calendar-day {
+  min-height: 200px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.weekly-calendar-day-today {
+  background: #fff4f0;
+  border-color: var(--strava-orange, #FC4C02);
+}
+
+.weekly-calendar-day-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.weekly-calendar-day-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666666;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.weekly-calendar-day-number {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.weekly-calendar-day-number-today {
+  color: var(--strava-orange, #FC4C02);
+}
+
+.weekly-calendar-day-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.weekly-calendar-add-session {
+  background: white;
+  border: 1px dashed #d0d0d0;
+  border-radius: 6px;
+  padding: 8px;
+  color: #666666;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.weekly-calendar-add-session:hover {
+  border-color: var(--strava-orange, #FC4C02);
+  color: var(--strava-orange, #FC4C02);
+  background: #fff4f0;
+}
+
+@media (max-width: 1024px) {
+  .weekly-calendar-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .weekly-calendar-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .weekly-calendar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

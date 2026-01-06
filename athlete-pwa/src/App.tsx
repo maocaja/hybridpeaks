@@ -607,14 +607,10 @@ function App() {
       if (!navigator.onLine) {
         throw new NetworkError('Offline')
       }
+      // Create workout log (backend automatically updates status to COMPLETED)
       await apiFetch(`/api/athlete/sessions/${activeSession.id}/log`, {
         method: 'POST',
         body: JSON.stringify({ summary }),
-      })
-
-      await apiFetch(`/api/athlete/sessions/${activeSession.id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'COMPLETED' }),
       })
 
       setSessions((prev) =>
@@ -629,19 +625,13 @@ function App() {
       fetchWeekSessions()
     } catch (err) {
       if (activeSession && isNetworkError(err)) {
+        // Create workout log (backend automatically updates status to COMPLETED)
         await enqueueQueueItem({
           kind: 'LOG',
           sessionId: activeSession.id,
           method: 'POST',
           url: `/api/athlete/sessions/${activeSession.id}/log`,
           body: { summary },
-        })
-        await enqueueQueueItem({
-          kind: 'STATUS',
-          sessionId: activeSession.id,
-          method: 'PATCH',
-          url: `/api/athlete/sessions/${activeSession.id}/status`,
-          body: { status: 'COMPLETED' },
         })
         setSessions((prev) =>
           prev.map((session) =>

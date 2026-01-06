@@ -1,0 +1,141 @@
+.strength-session-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 8px;
+  /* Don't force min-height - let it grow naturally */
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.form-section-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.exercise-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fafafa;
+}
+
+.exercise-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.exercise-number {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 14px;
+}
+
+.exercise-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.exercise-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.exercise-picker-wrapper {
+  position: relative;
+}
+
+.exercise-picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.exercise-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+}
+
+.exercise-search-input:focus {
+  outline: none;
+  border-bottom-color: var(--strava-orange, #FC4C02);
+}
+
+.exercise-picker-list {
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+.exercise-picker-item {
+  width: 100%;
+  padding: 12px;
+  background: white;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.exercise-picker-item:hover {
+  background: #fafafa;
+}
+
+.exercise-picker-loading,
+.exercise-picker-empty {
+  padding: 24px;
+  text-align: center;
+  color: #999999;
+  font-size: 14px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.field-error {
+  color: #dc2626;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.input-error {
+  border-color: #dc2626 !important;
+}
+

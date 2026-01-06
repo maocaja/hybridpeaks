@@ -1,0 +1,50 @@
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.input {
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 16px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--strava-orange, #FC4C02);
+}
+
+.input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.input-field-error {
+  border-color: #dc2626;
+}
+
+.input-error-message {
+  font-size: 14px;
+  color: #dc2626;
+}
+
+.input-helper-text {
+  font-size: 14px;
+  color: #666666;
+}
+
+.input-error .input-label {
+  color: #dc2626;
+}
+
