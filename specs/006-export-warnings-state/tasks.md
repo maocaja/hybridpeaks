@@ -1,127 +1,142 @@
-# Tasks: Export Warnings and State Tracking
+# Tasks: Export Status Display and Endurance Preview (Athlete PWA)
 
 **Input**: Design documents from `/specs/006-export-warnings-state/`
-**Prerequisites**: plan.md ✓, spec.md ✓
+**Prerequisites**: plan.md ✓, spec.md ✓, Feature 005 (Auto-Push) ✓
 
-**Tests**: Manual testing sufficient for MVP
+**Tests**: Manual testing for UI components and status updates.
 
-**Organization**: Two main parts - warnings and state tracking.
+**Organization**: Single user story - UI display and preview calculation.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: US1 (Warnings), US2 (State tracking)
+- **[Story]**: US1 (export status and preview display)
 
 ## Path Conventions
 
-- **Web app**: `backend/src/`, `coach-web/src/`
+- **Web app**: `athlete-pwa/src/`, `backend/src/` (optional)
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Database schema for export state
+**Purpose**: No setup needed - extends existing infrastructure
 
-- [ ] T001 Create Prisma migration for exportedToGarminAt field
-  - Add `exportedToGarminAt DateTime?` to TrainingSession model in `backend/prisma/schema.prisma`
-  - Run migration: `npx prisma migrate dev`
-  - Field is nullable (not all sessions exported)
+- [x] Athlete PWA "Today" view exists
+- [x] Session fetching exists
+- [x] API client exists
+- [x] Export status fields exist in TrainingSession (Feature 005)
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Legacy detection and state update infrastructure
+**Purpose**: No foundational work needed - all dependencies exist
 
-- [x] Legacy normalization logic exists
-- [ ] T002 [P] [US1] Add legacy detection helper in `backend/src/weekly-plans/weekly-plans.service.ts`
-  - Create `isLegacyPrescription(prescription: Prisma.JsonValue): boolean`
-  - Check if prescription has `intervals` and does not have `steps`
-  - Return true if legacy format detected
+- [x] Export status available in session data (Feature 005)
+- [x] Endurance prescription format consistent
+- [x] React component structure exists
 
-- [ ] T003 [P] [US2] Update export method to set exportedToGarminAt in `backend/src/coach/coach.service.ts`
-  - In `exportToGarmin()` method, after successful Garmin API call
-  - Update TrainingSession: `exportedToGarminAt = new Date()`
-  - Use Prisma update: `prisma.trainingSession.update({ where: { id: sessionId }, data: { exportedToGarminAt: new Date() } })`
-  - If update fails, log error and keep export success response
-
-**Checkpoint**: Backend can detect legacy and track export state
+**Checkpoint**: Foundation ready - UI implementation can begin
 
 ---
 
-## Phase 3: User Story 1 - Legacy Warning Display (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Export Status and Preview Display (Priority: P1) 🎯 MVP
 
-**Goal**: Coaches see warning when workout was auto-converted from legacy format
+**Goal**: Athlete can see export status and workout preview for endurance sessions
 
-**Independent Test**: Legacy-converted sessions show warning badge in UI
+**Independent Test**: View ENDURANCE session in "Today", see status badge and preview card
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Add isLegacy field to session response in backend
-  - Update session DTOs or response mapping to include `isLegacy: boolean`
-  - Use `isLegacyPrescription()` helper to determine value
-  - Include in session detail and list responses
+- [x] T001 [US1] Create ExportStatusBadge component in `athlete-pwa/src/App.tsx` (integrated inline)
+  - Props: `status` (NOT_CONNECTED | PENDING | SENT | FAILED), `provider` (GARMIN | WAHOO | null), `exportedAt` (Date | null), `error` (string | null)
+  - Render badge with appropriate color and icon:
+    - NOT_CONNECTED: Gray badge, "Connect to send" text
+    - PENDING: Yellow badge, "Sending..." text
+    - SENT: Green badge, "Sent to [Provider]" text with timestamp
+    - FAILED: Red badge, "Failed" text with error message
+  - Show action buttons:
+    - NOT_CONNECTED: "Go to Connections" button
+    - FAILED: "Retry Send" button
+  - Style with CSS (use existing color variables)
 
-- [ ] T005 [US1] Add warning badge to session detail modal in `coach-web/src/App.tsx`
-  - Check `session.isLegacy` property
-  - Display badge: "Auto-converted from legacy format. Please review."
-  - Show before export button (if present)
-  - Style as warning/info badge
+- [x] T002 [US1] Create EndurancePreview component in `athlete-pwa/src/App.tsx` (integrated inline, utility extracted to `utils/endurance-preview.ts`)
+  - Props: `prescription` (JSON object)
+  - Calculate and display:
+    - **Objective**: From `prescription.objective` or "Endurance Workout"
+    - **Duration**: Calculate from steps (sum of durations), format as "X min" or "X km"
+    - **Sport**: From `prescription.sport` (BIKE | RUN | SWIM)
+    - **Primary Target**: From first step's `primaryTarget` (format: "Power Zone 3" or "HR 140-160 bpm")
+  - Handle edge cases:
+    - Missing objective: Show "Endurance Workout"
+    - Missing duration: Show "Duration: TBD"
+    - Missing targets: Show "Targets: Not specified"
+  - Render preview card with styled layout
 
-- [ ] T006 [US1] Add warning badge styles in `coach-web/src/App.css`
-  - Warning badge styles (yellow/orange background, readable text)
-  - Match existing badge styles in app
+- [x] T003 [US1] Integrate status badge and preview in "Today" view in `athlete-pwa/src/App.tsx`
+  - For ENDURANCE sessions in "Today" view:
+    - Render `ExportStatusBadge` above or below session title
+    - Render `EndurancePreview` with session prescription
+  - Position components appropriately (badge at top, preview below)
 
-**Checkpoint**: Legacy warnings visible in UI
+- [x] T004 [US1] Implement status polling in `athlete-pwa/src/App.tsx`
+  - When session has `exportStatus = PENDING`:
+    - Start polling `GET /api/athlete/sessions/:id` every 5-10 seconds
+    - Update session state when status changes
+    - Stop polling when status is SENT or FAILED
+  - Use `useEffect` with interval
+  - Clean up interval on unmount
+
+- [x] T005 [US1] Implement action button handlers in `athlete-pwa/src/App.tsx`
+  - "Go to Connections" button:
+    - Navigate to Profile → Connections (or show connections modal)
+    - Can use React Router or state management
+  - "Retry Send" button:
+    - Call `POST /api/athlete/sessions/:id/retry-export` (if implemented)
+    - Or trigger manual export (if endpoint exists)
+    - Show loading state during retry
+    - Update status after retry
+
+- [x] T006 [US1] Add styles for status badge and preview in `athlete-pwa/src/App.css`
+  - Status badge styles:
+    - Colors: Gray (NOT_CONNECTED), Yellow (PENDING), Green (SENT), Red (FAILED)
+    - Icons: Info, Clock, Check, X
+    - Badge shape: Pill or rounded rectangle
+  - Preview card styles:
+    - Card layout with padding
+    - Objective as title
+    - Duration, sport, target as details
+    - Responsive design (mobile-friendly)
+
+- [x] T007 [P] [US1] Retry export endpoint added in `backend/src/athlete/athlete.controller.ts` (`POST /sessions/:id/retry-export`)
+  - `GET /sessions/:id/export-status`: Returns export status for session
+  - Only if existing session endpoints don't include status
+  - Otherwise, use existing session data
+
+**Checkpoint**: Export status and preview display functional
 
 ---
 
-## Phase 4: User Story 2 - Export State Display (Priority: P1) 🎯 MVP
+## Phase 4: Polish & Cross-Cutting Concerns
 
-**Goal**: Coaches see which workouts have been exported to Garmin
+- [x] T008 [P] Manual testing
+  - Test status badge display for all statuses
+  - Test preview calculation with various prescriptions
+  - Test action buttons (navigation, retry)
+  - Test status polling and real-time updates
+  - Test error handling (network errors, invalid data)
+  - Test mobile responsiveness
 
-**Independent Test**: Exported sessions show "Exported to Garmin" badge with timestamp
+- [x] T009 [P] Error handling improvements
+  - Handle network errors gracefully
+  - Show cached status if API unavailable
+  - Handle invalid prescription data in preview
 
-### Implementation for User Story 2
-
-- [ ] T007 [US2] Include exportedToGarminAt in session responses in backend
-  - Update session DTOs to include `exportedToGarminAt?: Date`
-  - Include in session detail and list responses
-  - Return null if not exported
-
-- [ ] T008 [US2] Add export status badge to session detail modal in `coach-web/src/App.tsx`
-  - Check `session.exportedToGarminAt` property
-  - If present: Display "Exported to Garmin" with formatted timestamp
-  - Show near export button or session header
-  - Style as success/info badge
-
-- [ ] T009 [US2] Add export status badge styles in `coach-web/src/App.css`
-  - Export status badge styles (green/success color)
-  - Timestamp formatting (e.g., "2 hours ago", "Dec 30, 2025")
-
-- [ ] T010 [US2] Add export status to session list (Week tab) in `coach-web/src/App.tsx`
-  - Show small badge or icon for exported sessions in list view
-  - Indicate which sessions are already exported
-
-**Checkpoint**: Export state visible in UI
-
----
-
-## Phase 5: Integration & Polish
-
-- [ ] T011 Verify both warnings and status can appear together
-  - Session can have both legacy warning and export status
-  - Both badges display correctly
-  - No visual conflicts
-
-- [ ] T012 Manual testing
-  - Test legacy detection with legacy prescriptions
-  - Test legacy detection with new prescriptions (no false positives)
-  - Test export state updates after export
-  - Test UI displays both warnings and status correctly
-  - Test timestamp formatting
-
-**Checkpoint**: Feature complete and validated
+- [x] T010 [P] Performance optimization (preview calculation extracted to utility module)
+  - Optimize preview calculation (memoization if needed)
+  - Reduce polling frequency if needed
+  - Lazy load preview component if needed
 
 ---
 
@@ -129,40 +144,27 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: Must complete first (database schema)
-- **Foundational (Phase 2)**: Depends on Setup, blocks US1 and US2
-- **User Story 1 (Phase 3)**: Depends on Foundational
-- **User Story 2 (Phase 4)**: Depends on Foundational and feature 004 (export functionality)
-- **Integration (Phase 5)**: Depends on all implementation
+- **Setup (Phase 1)**: No dependencies - can start immediately
+- **Foundational (Phase 2)**: No dependencies - all exists
+- **User Story 1 (Phase 3)**: Depends on Feature 005 (export status fields)
+- **Polish (Phase 4)**: Depends on User Story 1 completion
 
-### Task Dependencies
+### Feature Dependencies
 
-- **T001**: Must be first (database schema)
-- **T002, T003**: Can run in parallel (different services)
-- **T004**: Depends on T002 (needs detection helper)
-- **T005, T006**: Sequential (UI → styles)
-- **T007**: Can be done independently
-- **T008-T010**: Sequential (detail → styles → list)
-- **T011, T012**: Depends on all implementation
+- **Feature 005 (Auto-Push)**: Required - provides export status fields
 
----
+### Parallel Opportunities
 
-## Implementation Strategy
-
-### MVP First
-
-1. Database migration (T001)
-2. Backend detection and state update (T002, T003, T004, T007)
-3. Frontend warnings (T005, T006)
-4. Frontend export status (T008-T010)
-5. Integration testing (T011, T012)
-6. **STOP and VALIDATE**: Feature complete
+- T001, T002 can run in parallel (different components)
+- T003, T004, T005 can run in parallel (different parts of App.tsx)
+- T008, T009, T010 can run in parallel (different polish tasks)
 
 ---
 
 ## Notes
 
-- Legacy detection must be accurate (no false positives/negatives)
-- Export state updates atomically with export operation (feature 004)
-- UI badges should be clear but not intrusive
-- Both warnings and status can appear on same session
+- Status polling should be efficient (don't poll too frequently)
+- Preview calculation should handle edge cases gracefully
+- Action buttons should be clear and accessible
+- Mobile-friendly design is critical (PWA for athletes)
+- Status updates should feel real-time (polling every 5-10s is acceptable for MVP)

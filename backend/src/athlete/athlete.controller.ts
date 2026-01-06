@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Put,
   Body,
   UseGuards,
   Request,
@@ -22,6 +23,7 @@ import { UpdateSessionStatusDto } from './dto/update-session-status.dto';
 import { CreateWorkoutLogDto } from './dto/create-workout-log.dto';
 import { QueryWeeklyPlanDto } from '../weekly-plans/dto/query-weekly-plan.dto';
 import { QuerySessionsDto } from './dto/query-sessions.dto';
+import { SetPrimaryProviderDto } from './dto/set-primary-provider.dto';
 
 interface AuthenticatedRequest extends Request {
   user: User;
@@ -108,5 +110,32 @@ export class AthleteController {
       query.from,
       query.to,
     );
+  }
+
+  @Get('connections')
+  @HttpCode(HttpStatus.OK)
+  async getConnections(@Request() req: AuthenticatedRequest) {
+    return this.athleteService.getConnections(req.user.id);
+  }
+
+  @Put('connections/primary')
+  @HttpCode(HttpStatus.OK)
+  async setPrimaryProvider(
+    @Request() req: AuthenticatedRequest,
+    @Body() setPrimaryDto: SetPrimaryProviderDto,
+  ) {
+    return this.athleteService.setPrimaryProvider(
+      req.user.id,
+      setPrimaryDto.provider,
+    );
+  }
+
+  @Post('sessions/:sessionId/retry-export')
+  @HttpCode(HttpStatus.OK)
+  async retryExport(
+    @Request() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.athleteService.retryExport(req.user.id, sessionId);
   }
 }

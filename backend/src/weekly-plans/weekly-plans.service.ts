@@ -12,6 +12,7 @@ import {
   Modality,
   SessionStatus,
 } from '@prisma/client';
+import { EnduranceExportService } from '../integrations/endurance/endurance-export.service';
 import { CreateWeeklyPlanDto } from './dto/create-weekly-plan.dto';
 import { UpdateWeeklyPlanDto } from './dto/update-weekly-plan.dto';
 import { validateSync } from 'class-validator';
@@ -87,7 +88,10 @@ interface LegacyTargetParse {
 
 @Injectable()
 export class WeeklyPlansService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private enduranceExportService: EnduranceExportService,
+  ) {}
 
   /**
    * Verify that coach has the athlete in their roster
@@ -820,6 +824,21 @@ export class WeeklyPlansService {
       },
     });
 
+    // Auto-push ENDURANCE sessions to athlete's device (async, don't wait)
+    for (const session of weeklyPlan.sessions) {
+      if (session.type === 'ENDURANCE') {
+        this.enduranceExportService
+          .autoPushEnduranceWorkout(session.id, athleteUserId)
+          .catch((error) => {
+            // Log error but don't fail plan creation
+            console.error(
+              `Failed to auto-push endurance workout ${session.id}:`,
+              error,
+            );
+          });
+      }
+    }
+
     return weeklyPlan;
   }
 
@@ -937,6 +956,23 @@ export class WeeklyPlansService {
       },
     });
 
+    // Auto-push ENDURANCE sessions to athlete's device (async, don't wait)
+    if (dto.sessions) {
+      for (const session of updatedPlan.sessions) {
+        if (session.type === 'ENDURANCE') {
+          this.enduranceExportService
+            .autoPushEnduranceWorkout(session.id, existingPlan.athleteUserId)
+            .catch((error) => {
+              // Log error but don't fail plan update
+              console.error(
+                `Failed to auto-push endurance workout ${session.id}:`,
+                error,
+              );
+            });
+        }
+      }
+    }
+
     return updatedPlan;
   }
 
@@ -980,18 +1016,30 @@ export class WeeklyPlansService {
     prescription: Prisma.JsonValue;
     status: SessionStatus;
     completedAt?: Date | null;
+    exportStatus?: string | null;
+    exportProvider?: string | null;
+    exportedAt?: Date | null;
+    externalWorkoutId?: string | null;
+    lastExportError?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }) {
+    const baseResponse = {
+      ...session,
+      date: session.date.toISOString().split('T')[0],
+      completedAt: session.completedAt?.toISOString() || null,
+      exportedAt: session.exportedAt?.toISOString() || null,
+    };
+
     if (session.type !== SessionType.ENDURANCE) {
-      return session;
+      return baseResponse;
     }
 
     const normalized = this.normalizeEndurancePrescription(
       session.prescription,
     );
     return {
-      ...session,
+      ...baseResponse,
       prescription: normalized,
     };
   }

@@ -85,3 +85,4 @@ export class WahooExporterStub implements EnduranceExporter {
     };
   }
 }
+

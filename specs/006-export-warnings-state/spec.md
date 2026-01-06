@@ -1,9 +1,9 @@
-# Feature Specification: Export Warnings and State Tracking
+# Feature Specification: Export Status Display and Endurance Preview (Athlete PWA)
 
 **Feature ID**: 006  
-**Version**: 1.0  
-**Last Updated**: 2025-12-30  
-**Status**: Draft
+**Version**: 2.0  
+**Last Updated**: 2026-01-06  
+**Status**: ✅ **COMPLETED**
 
 ---
 
@@ -11,22 +11,23 @@
 
 ### Problem Statement
 
-When legacy endurance prescriptions are normalized, the system logs warnings but coaches don't see them. Coaches need visibility into when workouts were auto-converted and should review them before export. Additionally, coaches need to know which workouts have already been exported to avoid duplicate exports.
+Athletes need to see the status of their endurance workouts (whether they've been sent to their device) and a preview of what the workout contains. Currently, athletes can see endurance sessions in their "Today" view, but they don't know if the workout has been sent to their Garmin/Wahoo device, or what the workout structure looks like. Athletes also need actionable feedback when exports fail or when they need to connect a device.
 
 ### User Goals
 
-- **Coaches**: See when a workout was auto-converted from legacy format
-- **Coaches**: Know which workouts have been exported to Garmin
-- **Coaches**: Avoid accidentally exporting the same workout twice
-- **Coaches**: Review converted workouts before export
+- **Athletes**: See if endurance workout has been sent to their device
+- **Athletes**: See a preview of the endurance workout (objective, duration, targets)
+- **Athletes**: Know what to do if export failed or device not connected
+- **Athletes**: Understand workout structure before executing on device
 
 ### Success Criteria
 
-- Legacy-converted workouts show visible warning badge/text
-- Exported workouts show "Exported" indicator
-- Warning appears before export (coach can review)
-- Export state persists and is visible in UI
-- Coaches can distinguish exported vs non-exported workouts
+- Endurance sessions show export status badge (NOT_CONNECTED, PENDING, SENT, FAILED)
+- Endurance sessions show preview (objective, estimated duration, target zones/types)
+- Failed exports show retry option
+- NOT_CONNECTED status shows "Connect to send" action
+- Status updates in real-time when export completes
+- Preview is clear and actionable
 
 ---
 
@@ -34,37 +35,71 @@ When legacy endurance prescriptions are normalized, the system logs warnings but
 
 ### Primary User Flows
 
-**Scenario 1: Coach Sees Legacy Conversion Warning**
+**Scenario 1: Athlete Views Endurance Workout (Sent Successfully)**
 
-1. Coach views endurance session that was created from legacy format
-2. Coach sees warning badge: "Auto-converted from legacy format. Please review."
-3. Coach reviews workout structure before export
-4. Coach decides to export or edit first
+1. Athlete opens "Today" view in Athlete PWA
+2. Athlete sees ENDURANCE session
+3. Athlete sees status badge: "Sent to Garmin" (or Wahoo) with timestamp
+4. Athlete sees preview:
+   - Objective: "Z2 Base Ride"
+   - Duration: "60 min"
+   - Targets: "Power Zone 2"
+5. Athlete knows workout is on device and can execute it
 
-**Scenario 2: Coach Sees Export Status**
+**Scenario 2: Athlete Views Endurance Workout (Not Connected)**
 
-1. Coach views endurance session
-2. Coach sees "Exported to Garmin" badge or timestamp
-3. Coach knows this workout is already in Garmin
-4. Coach doesn't try to export again
+1. Athlete opens "Today" view
+2. Athlete sees ENDURANCE session
+3. Athlete sees status badge: "Connect to send"
+4. Athlete sees preview (same as Scenario 1)
+5. Athlete clicks "Go to Connections" button
+6. System navigates to Profile → Connections
+7. Athlete connects Garmin/Wahoo
+8. System auto-pushes workout
+9. Status updates to "Sent to Garmin"
 
-**Scenario 3: Coach Exports and Sees Status Update**
+**Scenario 3: Athlete Views Endurance Workout (Export Failed)**
 
-1. Coach exports workout to Garmin
-2. Export succeeds
-3. Session detail shows "Exported to Garmin" with timestamp
-4. Coach can see when it was exported
+1. Athlete opens "Today" view
+2. Athlete sees ENDURANCE session
+3. Athlete sees status badge: "Failed" with error message
+4. Athlete sees preview
+5. Athlete clicks "Retry Send" button
+6. System attempts export again
+7. If succeeds: Status updates to "Sent to Garmin"
+8. If fails: Status shows new error, retry available again
+
+**Scenario 4: Athlete Views Endurance Workout (Pending Export)**
+
+1. Coach just created ENDURANCE session
+2. System is processing export (normalizing, validating, sending)
+3. Athlete opens "Today" view
+4. Athlete sees status badge: "Sending..."
+5. Athlete sees preview
+6. After few seconds, status updates to "Sent to Garmin" or "Failed"
+
+**Scenario 5: Athlete Views Endurance Workout Preview**
+
+1. Athlete sees ENDURANCE session in "Today"
+2. Athlete sees preview card showing:
+   - **Objective**: "Z3 Intervals" (from prescription.objective)
+   - **Duration**: "45 min" (calculated from steps)
+   - **Type**: "Intervals" (derived from step structure)
+   - **Targets**: "Power Zone 3" or "HR 140-160 bpm" (from primary targets)
+3. Athlete understands what they'll execute on device
 
 ### Edge Cases
 
-- Workout exported multiple times (show latest export timestamp)
-- Workout has both legacy warning and export status (show both)
-- Export fails but state was partially updated (rollback state)
+- Workout has both legacy warning and export status (show both, but legacy warning is less prominent)
+- Export status changes while athlete is viewing (update in real-time if possible)
+- Multiple endurance sessions in same day (each shows own status)
+- Preview calculation fails (show "Preview unavailable" but still show status)
 
 ### Error Scenarios
 
-- Warning detection fails (no warning shown, but workout still works)
-- Export state update fails (export succeeds but state not saved - show success but no badge)
+- **Status fetch fails**: Show "Status unknown" but allow retry
+- **Preview calculation error**: Show basic info (objective only) with "Details unavailable"
+- **Network error**: Show cached status with "Last updated: [time]" indicator
 
 ---
 
@@ -72,53 +107,79 @@ When legacy endurance prescriptions are normalized, the system logs warnings but
 
 ### Must Have (MVP)
 
-- **REQ-1**: Legacy conversion warning displayed in UI
-  - Acceptance: Sessions with legacy prescriptions show warning badge/text: "Auto-converted. Please review."
+- **REQ-1**: Export status displayed for ENDURANCE sessions
+  - Acceptance: ENDURANCE sessions show status badge with one of:
+    - "Connect to send" (NOT_CONNECTED)
+    - "Sending..." (PENDING)
+    - "Sent to [Provider]" (SENT) with timestamp
+    - "Failed" (FAILED) with error message
 
-- **REQ-2**: Export state stored in database
-  - Acceptance: `exportedToGarminAt` field added to TrainingSession model
+- **REQ-2**: Status badge is visually distinct
+  - Acceptance: Different colors/icons for each status:
+    - NOT_CONNECTED: Gray/info
+    - PENDING: Yellow/warning
+    - SENT: Green/success
+    - FAILED: Red/error
 
-- **REQ-3**: Export state displayed in UI
-  - Acceptance: Exported sessions show "Exported to Garmin" badge or timestamp
+- **REQ-3**: Preview shows workout summary
+  - Acceptance: ENDURANCE sessions show preview card with:
+    - Objective (from prescription.objective)
+    - Estimated duration (calculated from steps)
+    - Primary target type and value (POWER/HR/PACE with zone or range)
+    - Sport type (BIKE/RUN/SWIM)
 
-- **REQ-4**: Warning appears before export
-  - Acceptance: Warning visible in session detail modal before export button
+- **REQ-4**: Action buttons based on status
+  - Acceptance: NOT_CONNECTED shows "Go to Connections" button
+  - Acceptance: FAILED shows "Retry Send" button
+  - Acceptance: SENT shows no action button (read-only)
 
-- **REQ-5**: Export updates state
-  - Acceptance: Successful export sets `exportedToGarminAt` timestamp
+- **REQ-5**: Status updates when export completes
+  - Acceptance: When auto-push completes, status updates in UI
+  - Acceptance: Update happens without page refresh (polling or websocket)
 
-- **REQ-6**: Legacy detection follows a deterministic rule
-  - Acceptance: Prescription is considered legacy if it has `intervals` and does not have `steps`
+- **REQ-6**: Failed export shows error message
+  - Acceptance: FAILED status displays `lastExportError` message
+  - Acceptance: Error message is user-friendly (not technical)
+
+- **REQ-7**: Preview calculation handles edge cases
+  - Acceptance: If duration can't be calculated, show "Duration: TBD"
+  - Acceptance: If targets are missing, show "Targets: Not specified"
 
 ### Should Have (Post-MVP)
 
-- Warning details (what was converted, original format)
-- Export history (multiple exports tracked)
-- Clear warning button (dismiss after review)
+- Detailed workout view (expand preview to show all steps)
+- Export history (when was it exported, how many times)
+- Legacy conversion warning (if workout was auto-converted)
+- Estimated completion time based on athlete's pace
 
 ### Could Have (Future)
 
-- Export to multiple platforms (track which platform)
-- Export validation (check if workout still matches Garmin version)
-- Auto-dismiss warnings after coach reviews
+- Workout comparison (planned vs executed from device)
+- Workout notes from coach visible in preview
+- Workout difficulty indicator
 
 ---
 
 ## Key Entities
 
-**TrainingSession (Enhanced)**
-- Description: Training session with export state tracking
+**Export Status Badge**
+- Description: UI component showing export status
 - Key attributes:
-  - `exportedToGarminAt`: Timestamp when exported to Garmin (nullable)
-  - `prescription`: Endurance prescription (may be legacy or new format)
-- Relationships: Existing TrainingSession model extended
+  - `status`: NOT_CONNECTED | PENDING | SENT | FAILED
+  - `provider`: GARMIN | WAHOO | null
+  - `exportedAt`: DateTime | null
+  - `error`: string | null
+- Relationships: Tied to specific TrainingSession
 
-**Legacy Conversion Warning**
-- Description: UI indicator for auto-converted workouts
+**Endurance Preview Card**
+- Description: UI component showing workout summary
 - Key attributes:
-  - `isLegacy`: Whether prescription was converted from legacy format
-  - `message`: Warning text to display
-- Relationships: Derived from prescription format detection
+  - `objective`: string (from prescription)
+  - `estimatedDuration`: number (minutes, calculated)
+  - `sport`: BIKE | RUN | SWIM
+  - `primaryTarget`: { kind: POWER | HR | PACE, value: string }
+  - `type`: string (derived: "Intervals", "Steady", "Tempo", etc.)
+- Relationships: Derived from TrainingSession.prescription
 
 ---
 
@@ -126,59 +187,67 @@ When legacy endurance prescriptions are normalized, the system logs warnings but
 
 ### Performance
 
-- Warning detection: < 10ms (simple format check)
-- State update: < 100ms (database write)
-- UI rendering: No noticeable delay
+- Status fetch: < 200ms (API call)
+- Preview calculation: < 50ms (client-side)
+- Status update polling: Every 5-10 seconds when PENDING
 
 ### Usability
 
-- Warning is visible but not intrusive
-- Export status is clear and unambiguous
-- Badges/icons are recognizable
+- Status badge is immediately recognizable
+- Preview is clear and concise (not overwhelming)
+- Action buttons are obvious and accessible
+- Error messages are actionable (tell user what to do)
 
 ### Reliability
 
-- State persists correctly across sessions
-- Warning detection is accurate (no false positives/negatives)
-- Export state updates immediately after successful export
-- If export succeeds but state update fails, export remains successful and the failure is logged
+- Status accurately reflects actual export state
+- Preview calculation handles missing/invalid data gracefully
+- Status updates don't cause UI flicker
+- Cached status shown if API unavailable
 
 ### Security
 
-- No security concerns (read-only warnings, state tracking)
+- No security concerns (read-only display of athlete's own data)
 
 ---
 
 ## Assumptions
 
-- Legacy prescription format can be detected (already done in normalization)
-- Export state only needed for Garmin (not Wahoo in MVP)
-- One export per session is sufficient (no export history needed in MVP)
-- Warning only needed for legacy conversions (new format doesn't need warning)
+- Export status fields exist in TrainingSession (Feature 005)
+- Endurance prescription format is consistent (new step-based format)
+- Athlete PWA "Today" view exists (already implemented)
+- Status can be polled or pushed via API
+- Preview calculation can be done client-side or server-side
 
 ---
 
 ## Dependencies
 
-- **Legacy Detection**: Depends on existing normalization logic that detects legacy format
-- **Export Endpoint**: Depends on export functionality (feature 004) to update state
-- **Session Model**: Depends on TrainingSession model (needs migration)
-- **UI Components**: Depends on session detail modal (Week tab)
+- **Export Status (Feature 005)**: Depends on export status fields in TrainingSession
+- **Device Connections (Feature 004)**: Depends on connection status for NOT_CONNECTED detection
+- **Athlete PWA Today View**: Depends on existing "Today" UI
+- **Backend API**: Depends on endpoint to fetch export status
 
 ---
 
 ## Out of Scope
 
-- **Export history**: Only latest export timestamp, not full history
-- **Multiple platform tracking**: Only Garmin in MVP
-- **Warning dismissal**: Warnings always shown (no dismiss in MVP)
-- **Export validation**: No checking if Garmin workout still matches
+- **Workout execution in HybridPeaks**: Endurance is executed on device, not in PWA
+- **Detailed step-by-step view**: Only preview summary, not full workout structure
+- **Export history UI**: Only current status, not history
+- **Coach view of export status**: Only athlete sees status in PWA (coach sees in different UI if needed)
+- **Workout execution analysis**: MVP does NOT show how athlete executed the workout on device
+  - **No import of activity data from Garmin/Wahoo**
+  - **No analysis of power/HR/cadence streams**
+  - **No comparison of planned vs executed workout**
+  - **Athlete executes on device, coach sees adherence via manual workout logs only**
 
 ---
 
 ## Open Questions
 
-None - straightforward feature combining warning display and state tracking.
+- [NEEDS CLARIFICATION: Should status update via polling or websocket? (Recommendation: polling every 5-10s when PENDING, then stop)]
+- [NEEDS CLARIFICATION: Should preview calculation be client-side or server-side? (Recommendation: server-side for consistency)]
 
 ---
 
@@ -186,10 +255,10 @@ None - straightforward feature combining warning display and state tracking.
 
 Before proceeding to planning, this specification must meet:
 
-- [x] No implementation details (languages, frameworks, APIs)
+- [ ] No implementation details (languages, frameworks, APIs) - 2 clarifications needed
 - [x] All requirements are testable and unambiguous
 - [x] Success criteria are measurable and technology-agnostic
 - [x] User scenarios cover primary flows
 - [x] Edge cases identified
-- [x] No [NEEDS CLARIFICATION] markers remain
+- [ ] No [NEEDS CLARIFICATION] markers remain - 2 clarifications needed
 - [x] Assumptions and dependencies documented

@@ -22,10 +22,18 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { calculateWeekSummary } from '../metrics/week-summary';
+import { EnduranceExportService } from '../integrations/endurance/endurance-export.service';
+
+// Use enum values directly since Prisma enums are not exported as types
+type DeviceProvider = 'GARMIN' | 'WAHOO';
+type ConnectionStatus = 'CONNECTED' | 'EXPIRED' | 'REVOKED' | 'ERROR';
 
 @Injectable()
 export class AthleteService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private enduranceExportService: EnduranceExportService,
+  ) {}
 
   async acceptInvitation(athleteUserId: string, token: string) {
     // Hash the provided token
@@ -317,5 +325,151 @@ export class AthleteService {
       completedAt: session.completedAt,
       hasLog: Boolean(session.workoutLog),
     }));
+  }
+
+  /**
+   * Get all device connections for an athlete
+   */
+  async getConnections(athleteUserId: string) {
+    const athleteProfile = await this.prisma.athleteProfile.findUnique({
+      where: { userId: athleteUserId },
+    });
+
+    if (!athleteProfile) {
+      return [];
+    }
+
+    const connections = await this.prisma.deviceConnection.findMany({
+      where: {
+        athleteProfileId: athleteProfile.id,
+      },
+      orderBy: [
+        { isPrimary: 'desc' },
+        { connectedAt: 'desc' },
+      ],
+    });
+
+    return connections.map((conn) => ({
+      provider: conn.provider,
+      status: conn.status,
+      connectedAt: conn.connectedAt,
+      isPrimary: conn.isPrimary,
+    }));
+  }
+
+  /**
+   * Set primary provider for an athlete
+   */
+  async setPrimaryProvider(
+    athleteUserId: string,
+    provider: DeviceProvider,
+  ) {
+    const athleteProfile = await this.prisma.athleteProfile.findUnique({
+      where: { userId: athleteUserId },
+    });
+
+    if (!athleteProfile) {
+      throw new NotFoundException('Athlete profile not found');
+    }
+
+    // Verify the provider is connected
+    const connection = await this.prisma.deviceConnection.findFirst({
+      where: {
+        athleteProfileId: athleteProfile.id,
+        provider,
+        status: 'CONNECTED',
+      },
+    });
+
+    if (!connection) {
+      throw new BadRequestException(
+        `Cannot set ${provider} as primary: connection not found or not connected`,
+      );
+    }
+
+    // Unset all other primary providers
+    await this.prisma.deviceConnection.updateMany({
+      where: {
+        athleteProfileId: athleteProfile.id,
+        isPrimary: true,
+      },
+      data: {
+        isPrimary: false,
+      },
+    });
+
+    // Set the selected provider as primary
+    await this.prisma.deviceConnection.update({
+      where: { id: connection.id },
+      data: { isPrimary: true },
+    });
+
+    return {
+      message: `${provider} set as primary provider`,
+      provider,
+    };
+  }
+
+  /**
+   * Retry export for a failed endurance workout
+   */
+  async retryExport(athleteUserId: string, sessionId: string) {
+    // Get session and verify ownership
+    const session = await this.prisma.trainingSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        weeklyPlan: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Training session not found');
+    }
+
+    // Verify session belongs to athlete
+    if (session.weeklyPlan.athleteUserId !== athleteUserId) {
+      throw new UnauthorizedException(
+        'Training session does not belong to athlete',
+      );
+    }
+
+    // Verify session is ENDURANCE
+    if (session.type !== SessionType.ENDURANCE) {
+      throw new BadRequestException(
+        'Only ENDURANCE sessions can be retried',
+      );
+    }
+
+    // Verify session has failed export
+    if (session.exportStatus !== 'FAILED') {
+      throw new BadRequestException(
+        `Cannot retry export: session status is ${session.exportStatus || 'NOT_SET'}. Only FAILED exports can be retried.`,
+      );
+    }
+
+    // Get provider (use existing or select new)
+    const provider =
+      session.exportProvider ||
+      (await this.enduranceExportService.selectProvider(athleteUserId));
+
+    if (!provider) {
+      throw new BadRequestException(
+        'No device connection found. Please connect a device first.',
+      );
+    }
+
+    // Retry export (async, don't wait)
+    this.enduranceExportService
+      .exportWorkoutToProvider(sessionId, athleteUserId, provider)
+      .catch((error) => {
+        // Error is already logged in exportWorkoutToProvider
+        console.error(`Retry export failed for session ${sessionId}:`, error);
+      });
+
+    return {
+      message: 'Export retry initiated',
+      sessionId,
+      provider,
+    };
   }
 }

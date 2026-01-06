@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
+import { calculateEndurancePreview } from './utils/endurance-preview'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!getAuthToken())
@@ -38,6 +39,15 @@ function App() {
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [connections, setConnections] = useState<DeviceConnection[]>([])
+  const [connectionsLoading, setConnectionsLoading] = useState(false)
+  const [connectionsError, setConnectionsError] = useState<string | null>(null)
+  const [showConnections, setShowConnections] = useState(false)
+  const [mockAuthorizing, setMockAuthorizing] = useState(false)
+  const [retryingExport, setRetryingExport] = useState<string | null>(null)
+  const [connectingProvider, setConnectingProvider] = useState<'GARMIN' | 'WAHOO' | null>(null)
+  const [settingPrimary, setSettingPrimary] = useState<'GARMIN' | 'WAHOO' | null>(null)
+  const [connectionSuccess, setConnectionSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (window.location.pathname === '/') {
@@ -344,10 +354,81 @@ function App() {
     [fetchToday, fetchWeekSessions, refreshQueueState],
   )
 
+  const fetchConnections = useCallback(async () => {
+    setConnectionsLoading(true)
+    setConnectionsError(null)
+    try {
+      const data = await apiFetch<DeviceConnection[]>('/api/athlete/connections')
+      setConnections(data)
+    } catch (err) {
+      setConnectionsError(err instanceof Error ? err.message : 'Failed to load connections')
+    } finally {
+      setConnectionsLoading(false)
+    }
+  }, [])
+
+  const connectProvider = useCallback(async (provider: 'GARMIN' | 'WAHOO') => {
+    setConnectingProvider(provider)
+    setConnectionsError(null)
+    setConnectionSuccess(null)
+    try {
+      // Get OAuth URL from backend with authentication
+      const data = await apiFetch<{ url: string }>(`/api/athlete/${provider.toLowerCase()}/connect`)
+      
+      if (data?.url) {
+        // Redirect to provider OAuth page
+        window.location.href = data.url
+      } else {
+        setConnectionsError('Failed to get OAuth URL')
+        setConnectingProvider(null)
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setConnectionsError('Please log in to connect your device')
+      } else {
+        setConnectionsError(err instanceof Error ? err.message : 'Failed to connect device')
+      }
+      setConnectingProvider(null)
+    }
+  }, [])
+
+  const setPrimaryProvider = useCallback(async (provider: 'GARMIN' | 'WAHOO') => {
+    setSettingPrimary(provider)
+    setConnectionsError(null)
+    try {
+      await apiFetch('/api/athlete/connections/primary', {
+        method: 'PUT',
+        body: JSON.stringify({ provider }),
+      })
+      setConnectionSuccess(`${provider} set as primary provider`)
+      await fetchConnections()
+    } catch (err) {
+      setConnectionsError(err instanceof Error ? err.message : 'Failed to set primary provider')
+    } finally {
+      setSettingPrimary(null)
+    }
+  }, [fetchConnections])
+
+  const retryExport = useCallback(async (sessionId: string) => {
+    setRetryingExport(sessionId)
+    try {
+      await apiFetch(`/api/athlete/sessions/${sessionId}/retry-export`, {
+        method: 'POST',
+      })
+      // Refresh sessions to get updated status
+      await fetchToday()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to retry export')
+    } finally {
+      setRetryingExport(null)
+    }
+  }, [fetchToday])
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchToday()
       fetchWeekSessions()
+      fetchConnections()
       refreshQueueState().then((items) => replayQueue(items))
       apiFetch<CurrentUser>('/api/auth/me')
         .then((data) => setCurrentUser(data))
@@ -355,7 +436,59 @@ function App() {
           setCurrentUser(null)
         })
     }
-  }, [isAuthenticated, fetchToday, fetchWeekSessions, refreshQueueState, replayQueue])
+  }, [isAuthenticated, fetchToday, fetchWeekSessions, fetchConnections, refreshQueueState, replayQueue])
+
+  // Poll connections status every 30 seconds when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const interval = setInterval(() => {
+      fetchConnections()
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(interval)
+  }, [isAuthenticated, fetchConnections])
+
+  // Poll export status for PENDING endurance sessions every 5 seconds
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const pendingSessions = sessions.filter(
+      (s) => s.type === 'ENDURANCE' && s.exportStatus === 'PENDING',
+    )
+
+    if (pendingSessions.length === 0) return
+
+    const interval = setInterval(() => {
+      // Refresh today's sessions to get updated export status
+      fetchToday()
+    }, 5000) // 5 seconds
+
+    return () => clearInterval(interval)
+  }, [isAuthenticated, sessions, fetchToday])
+
+  // Handle OAuth callback success/error from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const success = params.get('success')
+    const error = params.get('error')
+
+    if (success) {
+      // Clean URL
+      window.history.replaceState({}, '', '/today')
+      setShowConnections(true)
+      setConnectionSuccess(`${success.toUpperCase()} connected successfully!`)
+      setConnectingProvider(null)
+      fetchConnections()
+      // Clear success message after 5 seconds
+      setTimeout(() => setConnectionSuccess(null), 5000)
+    } else if (error) {
+      window.history.replaceState({}, '', '/today')
+      setConnectionsError(`Failed to connect ${error}. Please try again.`)
+      setConnectingProvider(null)
+      setShowConnections(true)
+    }
+  }, [fetchConnections])
 
   useEffect(() => {
     fetchWeekSessions()
@@ -554,6 +687,89 @@ function App() {
   }
 
   // Show login screen if not authenticated (after all hooks)
+  // Handle mock OAuth page (dev mode)
+  const handleMockAuthorize = useCallback(async (provider: string, state: string) => {
+    setMockAuthorizing(true)
+    try {
+      // Simulate provider authorization - redirect back to callback with mock code
+      const mockCode = `mock_${provider}_code_${Date.now()}`
+      const callbackUrl = `/api/athlete/${provider}/callback?code=${mockCode}&state=${state}`
+      window.location.href = callbackUrl
+    } catch (err) {
+      console.error('Mock OAuth error:', err)
+      setMockAuthorizing(false)
+    }
+  }, [])
+
+  if (window.location.pathname === '/mock-oauth') {
+    const params = new URLSearchParams(window.location.search)
+    const provider = params.get('provider') || 'garmin'
+    const state = params.get('state') || ''
+
+    return (
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '100vh',
+        padding: '2rem',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white'
+      }}>
+        <div style={{
+          background: 'white',
+          color: '#333',
+          padding: '2rem',
+          borderRadius: '12px',
+          maxWidth: '400px',
+          width: '100%',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+        }}>
+          <h2 style={{ marginTop: 0, textAlign: 'center' }}>
+            🔧 Mock OAuth Authorization
+          </h2>
+          <p style={{ textAlign: 'center', color: '#666', marginBottom: '2rem' }}>
+            Development Mode: Simulating {provider.toUpperCase()} authorization
+          </p>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p><strong>Provider:</strong> {provider.toUpperCase()}</p>
+            <p style={{ fontSize: '0.85rem', color: '#666', wordBreak: 'break-all' }}>
+              <strong>State:</strong> {state}
+            </p>
+          </div>
+          <button
+            onClick={() => handleMockAuthorize(provider, state)}
+            disabled={mockAuthorizing}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              background: mockAuthorizing ? '#ccc' : '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: mockAuthorizing ? 'not-allowed' : 'pointer',
+              transition: 'background 0.2s'
+            }}
+          >
+            {mockAuthorizing ? 'Authorizing...' : `Authorize ${provider.toUpperCase()}`}
+          </button>
+          <p style={{ 
+            fontSize: '0.75rem', 
+            color: '#999', 
+            textAlign: 'center', 
+            marginTop: '1rem' 
+          }}>
+            This is a mock authorization page for development.
+            In production, you would see the real {provider.toUpperCase()} authorization page.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="app">
@@ -770,6 +986,23 @@ function App() {
                   <span className="status pending">PENDING SYNC</span>
                 )}
               </div>
+              {/* Export status and preview for ENDURANCE sessions */}
+              {session.type === 'ENDURANCE' && (
+                <div className="endurance-export-section">
+                  <ExportStatusBadge
+                    status={session.exportStatus}
+                    provider={session.exportProvider}
+                    exportedAt={session.exportedAt}
+                    error={session.lastExportError}
+                    onRetry={() => retryExport(session.id)}
+                    onGoToConnections={() => {
+                      setShowConnections(true)
+                    }}
+                    retrying={retryingExport === session.id}
+                  />
+                  <EndurancePreview session={session} />
+                </div>
+              )}
               <div className="session-actions">
                 <button
                   className="btn primary"
@@ -834,6 +1067,134 @@ function App() {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="connections-section">
+        <div className="connections-header">
+          <h2 className="connections-title">Device Connections</h2>
+          <button
+            className="btn ghost"
+            onClick={() => setShowConnections(!showConnections)}
+          >
+            {showConnections ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {showConnections && (
+          <div className="connections-content">
+            {connectionsError && (
+              <div className="card error">{connectionsError}</div>
+            )}
+            {connectionSuccess && (
+              <div className="card success">{connectionSuccess}</div>
+            )}
+            {connectionsLoading && (
+              <div className="card">Loading connections...</div>
+            )}
+            {!connectionsLoading && !connectionsError && (
+              <div className="connections-list">
+                {['GARMIN', 'WAHOO'].map((provider) => {
+                  const connection = connections.find(
+                    (c) => c.provider === provider,
+                  )
+                  const status = connection?.status || 'NOT_CONNECTED'
+                  const isConnected = status === 'CONNECTED'
+                  const needsReconnect = status === 'EXPIRED' || status === 'REVOKED'
+
+                  return (
+                    <div key={provider} className="connection-card">
+                      <div className="connection-header">
+                        <div>
+                          <h3 className="connection-provider">{provider}</h3>
+                          {connection && (
+                            <p className="connection-date">
+                              Connected{' '}
+                              {new Date(connection.connectedAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="connection-status">
+                          {connection?.isPrimary && (
+                            <span className="status-badge primary">Primary</span>
+                          )}
+                          <span className={`status-badge status-${status.toLowerCase()}`}>
+                            {status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="connection-actions">
+                        {!isConnected && !needsReconnect && (
+                          <button
+                            className="btn primary"
+                            onClick={() => connectProvider(provider as 'GARMIN' | 'WAHOO')}
+                            disabled={connectingProvider !== null}
+                          >
+                            {connectingProvider === provider ? (
+                              <>⏳ Connecting...</>
+                            ) : (
+                              <>Connect {provider}</>
+                            )}
+                          </button>
+                        )}
+                        {needsReconnect && (
+                          <button
+                            className="btn primary"
+                            onClick={() => connectProvider(provider as 'GARMIN' | 'WAHOO')}
+                            disabled={connectingProvider !== null}
+                          >
+                            {connectingProvider === provider ? (
+                              <>⏳ Reconnecting...</>
+                            ) : (
+                              <>Reconnect {provider}</>
+                            )}
+                          </button>
+                        )}
+                        {isConnected && !connection?.isPrimary && (
+                          <button
+                            className="btn ghost"
+                            onClick={() => setPrimaryProvider(provider as 'GARMIN' | 'WAHOO')}
+                            disabled={settingPrimary !== null}
+                          >
+                            {settingPrimary === provider ? (
+                              <>⏳ Setting...</>
+                            ) : (
+                              <>Set as Primary</>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+                {connections.filter((c) => c.status === 'CONNECTED').length === 2 && (
+                  <div className="primary-selector">
+                    <label className="field">
+                      <span>Primary Provider</span>
+                      <select
+                        value={
+                          connections.find((c) => c.isPrimary)?.provider || ''
+                        }
+                        onChange={(e) =>
+                          setPrimaryProvider(
+                            e.target.value as 'GARMIN' | 'WAHOO',
+                          )
+                        }
+                        disabled={settingPrimary !== null}
+                      >
+                        {connections
+                          .filter((c) => c.status === 'CONNECTED')
+                          .map((c) => (
+                            <option key={c.provider} value={c.provider}>
+                              {c.provider}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </section>
 
@@ -932,6 +1293,9 @@ export default App
 type SessionType = 'STRENGTH' | 'ENDURANCE'
 type SessionStatus = 'PLANNED' | 'COMPLETED' | 'MISSED' | 'MODIFIED'
 
+type ExportStatus = 'NOT_CONNECTED' | 'PENDING' | 'SENT' | 'FAILED'
+type ExportProvider = 'GARMIN' | 'WAHOO'
+
 interface TrainingSession {
   id: string
   date: string
@@ -941,6 +1305,12 @@ interface TrainingSession {
   status: SessionStatus
   prescription: Record<string, unknown>
   hasLog?: boolean
+  // Export status fields (for ENDURANCE sessions)
+  exportStatus?: ExportStatus
+  exportProvider?: ExportProvider | null
+  exportedAt?: string | null
+  externalWorkoutId?: string | null
+  lastExportError?: string | null
 }
 
 interface WeekSession {
@@ -985,6 +1355,13 @@ interface ApiErrorPayload {
 interface CurrentUser {
   email: string
   role: string
+}
+
+interface DeviceConnection {
+  provider: 'GARMIN' | 'WAHOO'
+  status: 'CONNECTED' | 'EXPIRED' | 'REVOKED' | 'ERROR'
+  connectedAt: string
+  isPrimary: boolean
 }
 
 const AUTH_TOKEN_KEYS = ['authToken', 'accessToken', 'token']
@@ -1060,7 +1437,12 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   try {
     response = await fetch(path, { ...options, headers })
   } catch (err) {
-    throw new NetworkError('Network error')
+    // Check if it's a network error (ECONNREFUSED, etc.)
+    const errorMessage = err instanceof Error ? err.message : 'Network error'
+    if (errorMessage.includes('Failed to fetch') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('NetworkError')) {
+      throw new NetworkError('Cannot connect to server. Please check if the backend is running.')
+    }
+    throw new NetworkError(`Network error: ${errorMessage}`)
   }
 
   // If 401, try to refresh token and retry once
@@ -1153,6 +1535,130 @@ function summarizePrescription(session: TrainingSession) {
   }
 
   return `${modality} session`
+}
+
+import { calculateEndurancePreview } from './utils/endurance-preview'
+
+// Export status badge component
+function ExportStatusBadge({
+  status,
+  provider,
+  exportedAt,
+  error,
+  onRetry,
+  onGoToConnections,
+  retrying,
+}: {
+  status?: ExportStatus
+  provider?: ExportProvider | null
+  exportedAt?: string | null
+  error?: string | null
+  onRetry?: () => void
+  onGoToConnections?: () => void
+  retrying?: boolean
+}) {
+  if (!status || status === 'NOT_CONNECTED') {
+    return (
+      <div className="export-status-badge export-status-not-connected">
+        <span>🔗 Connect to send</span>
+        {onGoToConnections && (
+          <button className="btn-link" onClick={onGoToConnections}>
+            Go to Connections
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  if (status === 'PENDING') {
+    return (
+      <div className="export-status-badge export-status-pending">
+        <span>⏳ Sending...</span>
+      </div>
+    )
+  }
+
+  if (status === 'SENT') {
+    const providerName = provider ? provider.charAt(0) + provider.slice(1).toLowerCase() : 'Device'
+    const timeStr = exportedAt
+      ? new Date(exportedAt).toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+    return (
+      <div className="export-status-badge export-status-sent">
+        <span>✅ Sent to {providerName}</span>
+        {timeStr && <span className="export-time">{timeStr}</span>}
+      </div>
+    )
+  }
+
+  if (status === 'FAILED') {
+    return (
+      <div className="export-status-badge export-status-failed">
+        <span>❌ Failed</span>
+        {error && <span className="export-error">{error}</span>}
+        {onRetry && (
+          <button
+            className="btn-link"
+            onClick={onRetry}
+            disabled={retrying}
+          >
+            {retrying ? 'Retrying...' : 'Retry Send'}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
+// Endurance preview component
+function EndurancePreview({ session }: { session: TrainingSession }) {
+  const preview = calculateEndurancePreview(session.prescription)
+
+  if (preview.error) {
+    return (
+      <div className="endurance-preview">
+        <div className="preview-item preview-error">
+          <span>⚠️ {preview.error}</span>
+        </div>
+        {preview.sport !== 'UNKNOWN' && (
+          <div className="preview-item">
+            <strong>Sport:</strong> {preview.sport}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="endurance-preview">
+      {preview.objective && (
+        <div className="preview-item">
+          <strong>Objective:</strong> {preview.objective}
+        </div>
+      )}
+      <div className="preview-item">
+        <strong>Duration:</strong> {preview.duration}
+      </div>
+      <div className="preview-item">
+        <strong>Sport:</strong> {preview.sport}
+      </div>
+      {preview.primaryTarget && (
+        <div className="preview-item">
+          <strong>Target:</strong> {preview.primaryTarget}
+        </div>
+      )}
+      {!preview.primaryTarget && (
+        <div className="preview-item preview-muted">
+          <span>Targets: Not specified</span>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function buildStrengthSummary(form: LogFormState) {

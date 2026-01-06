@@ -287,6 +287,12 @@
   color: var(--error);
 }
 
+.card.success {
+  border-color: var(--success);
+  background: #dcfce7;
+  color: #166534;
+}
+
 .card.warning {
   border-color: var(--warning);
   background: #fffbeb;
@@ -411,6 +417,13 @@
   border: 1px solid var(--border);
   padding: 12px 20px;
   font-weight: 600;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
   font-size: 0.95rem;
   cursor: pointer;
   background: var(--background);
@@ -557,6 +570,220 @@
 .session-actions {
   display: grid;
   gap: 10px;
+}
+
+/* Connections Section */
+.connections-section {
+  margin-top: 24px;
+}
+
+.connections-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.connections-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.connections-content {
+  margin-top: 12px;
+}
+
+.connections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connection-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.connection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.connection-provider {
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.connection-date {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.connection-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-badge.primary {
+  background: var(--strava-orange-light);
+  color: var(--strava-orange);
+}
+
+.status-badge.status-connected {
+  background: #d1fae5;
+  color: var(--success);
+}
+
+.status-badge.status-expired,
+.status-badge.status-revoked,
+.status-badge.status-error {
+  background: #fee2e2;
+  color: var(--error);
+}
+
+.status-badge.status-not_connected {
+  background: var(--background-light);
+  color: var(--text-muted);
+}
+
+.connection-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Export status badge */
+.export-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+
+.export-status-badge.export-status-not-connected {
+  background: var(--background-light);
+  color: var(--text-secondary);
+}
+
+.export-status-badge.export-status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.export-status-badge.export-status-sent {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.export-status-badge.export-status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.export-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.export-error {
+  font-size: 0.75rem;
+  color: var(--error);
+  flex-basis: 100%;
+}
+
+.export-status-badge .btn-link {
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  margin-left: auto;
+}
+
+.export-status-badge .btn-link:hover {
+  opacity: 0.8;
+}
+
+/* Endurance preview */
+.endurance-export-section {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  background: var(--background-light);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.endurance-preview {
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+}
+
+.preview-item {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-item strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.preview-item {
+  color: var(--text-secondary);
+}
+
+.preview-item.preview-error {
+  color: var(--error);
+  font-weight: 500;
+}
+
+.preview-item.preview-muted {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.primary-selector {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.primary-selector .field {
+  margin: 0;
+}
+
+.primary-selector select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: var(--background);
+  color: var(--text-primary);
 }
 
 @media (min-width: 600px) {

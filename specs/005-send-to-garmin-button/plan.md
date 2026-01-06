@@ -1,33 +1,37 @@
-# Implementation Plan: Send to Garmin Button
+# Implementation Plan: Auto-Push Endurance Workouts to Devices
 
-**Branch**: `005-send-to-garmin-button` | **Date**: 2025-12-30 | **Spec**: [spec.md](./spec.md)
+**Branch**: `005-auto-push-endurance` | **Date**: 2025-01-05 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/005-send-to-garmin-button/spec.md`
 
 ## Summary
 
-Add a "Send to Garmin" button to the Coach Web session detail modal that triggers workout export to Garmin. The button shows appropriate states (enabled, disabled, loading, success, error) and provides clear feedback to coaches. This is a frontend-only feature that calls the existing backend export endpoint.
+Automatically push endurance workouts to athlete devices when coaches create or update ENDURANCE sessions. System uses athlete's connected device provider (Garmin or Wahoo) to create workouts in their account. Export status is tracked per session (NOT_CONNECTED, PENDING, SENT, FAILED) and failed exports can be retried. Pending workouts are automatically pushed when athletes connect devices.
+
+**⚠️ MVP Scope Clarification**: This feature **pushes planned workouts TO devices only**. MVP does NOT import executed workout data, analyze performance, or compare planned vs executed. Athletes execute on device, coaches see adherence via manual logs. Analysis of execution (summary + laps) is post-MVP.
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x, React 18.x  
-**Primary Dependencies**: React, existing Coach Web components, fetch/axios for API calls  
-**Storage**: N/A (frontend only, uses backend API)  
-**Testing**: React Testing Library (optional, manual testing sufficient for MVP)  
-**Target Platform**: Web browser (Coach Web app)  
-**Project Type**: Web application (frontend only)  
-**Performance Goals**: Button click response < 100ms, export API call < 3s  
-**Constraints**: Must work with existing session modal, must handle all button states  
-**Scale/Scope**: Single button component, minimal code changes
+**Language/Version**: TypeScript 5.x, Node.js 20.x LTS  
+**Primary Dependencies**: NestJS, Prisma ORM, Device OAuth (Feature 004), Endurance Normalizer (Feature 002), Exporters (Feature 003)  
+**Storage**: PostgreSQL (TrainingSession model extended with export status fields)  
+**Testing**: Jest (unit tests for auto-push logic, integration tests for triggers)  
+**Target Platform**: NestJS REST API (backend)  
+**Project Type**: Web application (backend only for this feature)  
+**Performance Goals**: < 3s for auto-push (async, doesn't block plan save)  
+**Constraints**: Must be asynchronous, must handle failures gracefully, must not block coach workflow  
+**Scale/Scope**: One export per session create/update, background job processing, retry logic for failures
 
 ## Constitution Check
 
-✅ **Guardrail 21 (No Temporary Workarounds)**: No workarounds - proper React component  
-✅ **Guardrail 22 (Strict Type Safety)**: TypeScript with strict types for all states  
-✅ **Guardrail 23 (Controllers Must Be Thin)**: N/A - frontend only  
-✅ **Guardrail 24 (DTO/Schema Validation)**: N/A - calls validated backend endpoint  
-✅ **Guardrail 25 (Migrations Required)**: N/A - no database changes  
-✅ **Guardrail 26 (No New Documentation)**: Only code, no new docs
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+✅ **Guardrail 21 (No Temporary Workarounds)**: Uses standard async job pattern, no workarounds  
+✅ **Guardrail 22 (Strict Type Safety)**: Export status fields typed as enums, all inputs/outputs typed  
+✅ **Guardrail 23 (Controllers Must Be Thin)**: Auto-push triggered from service layer, not controllers  
+✅ **Guardrail 24 (DTO/Schema Validation)**: Export status validated via Prisma schema  
+✅ **Guardrail 25 (Migrations Required)**: TrainingSession model extended with export fields  
+✅ **Guardrail 26 (No New Documentation)**: Only updating existing API contracts if needed
 
 ## Project Structure
 
@@ -43,57 +47,114 @@ specs/005-send-to-garmin-button/
 ### Source Code (repository root)
 
 ```text
-coach-web/
+backend/
 ├── src/
-│   ├── App.tsx          # Add button to session detail modal
-│   └── App.css          # Button styles and states
-└── tests/               # Optional tests
+│   ├── weekly-plans/
+│   │   └── weekly-plans.service.ts        # Add auto-push hooks on create/update
+│   ├── athlete/
+│   │   └── athlete.service.ts            # Add push pending workouts method
+│   ├── integrations/
+│   │   └── endurance/
+│   │       ├── endurance-normalizer.ts   # Existing - used for normalization
+│   │       └── exporters/
+│   │           ├── garmin-exporter.stub.ts  # Existing - used for conversion
+│   │           └── wahoo-exporter.stub.ts    # Existing - used for conversion
+│   └── prisma/
+│       └── schema.prisma                 # Add export status fields to TrainingSession
+└── tests/
+    └── weekly-plans/
+        └── auto-push.e2e-spec.ts         # Integration tests for auto-push
 ```
 
-**Structure Decision**: Minimal changes - add button to existing session modal in App.tsx. No new components needed for MVP.
+**Structure Decision**: This feature extends the existing `weekly-plans` service with auto-push hooks. The export logic uses existing normalizer and exporters from Features 002-003, and device connections from Feature 004. Export status is stored directly in TrainingSession model.
 
 ## Implementation Approach
 
 ### Phase 0: Research & Design
 
 **Existing Infrastructure:**
-- ✅ Session detail modal exists (Week tab)
-- ✅ Backend export endpoint exists (feature 004)
-- ✅ Garmin connection status endpoint exists (feature 004)
-- ✅ API fetch utility exists
+- ✅ `WeeklyPlansService` exists with session create/update methods
+- ✅ `endurance-normalizer.ts` exists with `normalizeEnduranceWorkout()` function
+- ✅ `GarminExporterStub` and `WahooExporterStub` exist
+- ✅ Device connections exist (Feature 004) with `DeviceOAuthService`
+- ✅ `TrainingSession` model accessible via Prisma
 
 **Design Decisions:**
-1. **Button Location**: Session detail modal (where session details are shown)
-2. **Button States**: 
-   - Enabled (Garmin connected, endurance session)
-   - Disabled (no Garmin connection, or non-endurance session)
-   - Loading ("Sending...")
-   - Success (brief success state, then back to enabled)
-   - Error (show error message, button returns to enabled)
 
-3. **State Management**: React useState for button state and error messages
-4. **API Call**: Use existing apiFetch utility to call POST `/coach/sessions/:id/export/garmin`
-5. **Feedback**: Inline success/error messages below button or as toast
+1. **Database Schema Extension**: Add to `TrainingSession` model
+   - `exportStatus`: enum (NOT_CONNECTED | PENDING | SENT | FAILED)
+   - `exportProvider`: enum (GARMIN | WAHOO | null)
+   - `exportedAt`: DateTime | null
+   - `externalWorkoutId`: string | null (provider's workout ID)
+   - `lastExportError`: string | null
+
+2. **Auto-Push Trigger**:
+   - Hook into `WeeklyPlansService.createSession()` and `WeeklyPlansService.updateSession()`
+   - Only trigger for ENDURANCE sessions
+   - Execute asynchronously (don't block save operation)
+   - Use background job or async queue (simple: Promise-based for MVP)
+
+3. **Provider Selection**:
+   - Check athlete's device connections
+   - If primary provider set → use primary
+   - If only one connected → use that one
+   - If none connected → set `exportStatus = NOT_CONNECTED`
+
+4. **Export Flow**:
+   - Normalize workout (expand repeat blocks)
+   - Validate normalized workout (steps ≥ 1, duration > 0, valid targets, cadence only BIKE)
+   - Convert to provider format (Garmin/Wahoo exporter)
+   - Get athlete's access token (refresh if needed)
+   - Call provider API to create workout
+   - Update session: `exportStatus = SENT`, `exportProvider`, `exportedAt`, `externalWorkoutId`
+
+5. **Error Handling**:
+   - Validation fails → `exportStatus = FAILED`, `lastExportError = "Validation failed: ..."`
+   - Provider API error → `exportStatus = FAILED`, `lastExportError = "[provider error]"`
+   - Token expired → auto-refresh and retry
+   - Token revoked → `exportStatus = NOT_CONNECTED`, require reconnect
+
+6. **Pending Workouts Push**:
+   - When athlete connects device, find all `NOT_CONNECTED` ENDURANCE sessions
+   - Push them automatically
+   - Update status to SENT or FAILED
 
 ### Phase 1: Implementation
 
-**Files to Modify:**
-1. `coach-web/src/App.tsx` - Add button to session modal
-2. `coach-web/src/App.css` - Add button styles for all states
+**Files to Create/Modify:**
 
-**Components:**
-- Button component (inline in modal)
-- State management (useState hooks)
-- API call handler
-- Error/success message display
+1. **Database Schema** (`backend/prisma/schema.prisma`)
+   - Add export status fields to `TrainingSession` model
+   - Create migration
+
+2. **Weekly Plans Service** (`backend/src/weekly-plans/weekly-plans.service.ts`)
+   - Add `autoPushEnduranceWorkout(sessionId, athleteUserId)` method
+   - Hook into `createSession()` and `updateSession()` for ENDURANCE sessions
+   - Call auto-push asynchronously (Promise-based)
+
+3. **Export Service** (`backend/src/integrations/endurance/endurance-export.service.ts`) - NEW
+   - `exportWorkoutToProvider(sessionId, athleteUserId, provider)`: Main export logic
+   - `normalizeAndValidate(workout)`: Normalize and validate workout
+   - `selectProvider(athleteUserId)`: Select provider (primary or only connected)
+   - `createWorkoutInProvider(provider, accessToken, workout)`: Call provider API
+   - Handle errors and update session status
+
+4. **Athlete Service** (`backend/src/athlete/athlete.service.ts`)
+   - `pushPendingWorkouts(athleteUserId, provider)`: Push all NOT_CONNECTED sessions
+   - Called when athlete connects device
+
+5. **Validation Helper** (`backend/src/integrations/endurance/endurance-export.service.ts`)
+   - `validateNormalizedWorkout(workout)`: Validate before export
+   - Reuse validation logic from Feature 004 (if extracted)
 
 ### Phase 2: Validation
 
-- Manual testing with various states
-- Test with/without Garmin connection
-- Test error cases
-- Test success flow
+- Manual testing: Create ENDURANCE session, verify auto-push
+- Test provider selection (primary vs only connected)
+- Test error handling (validation fails, API errors)
+- Test pending workouts push when athlete connects
+- Test retry logic for failed exports
 
 ## Complexity Tracking
 
-> **No violations** - Simple UI component following existing patterns.
+> **No violations** - This feature follows existing patterns and adds minimal complexity through async processing.
